@@ -4,7 +4,7 @@
   "description": "Topluluğunu ve kurslarını tek yerde topla",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f2747",
+  "background_color": "#1f5fd6",
   "theme_color": "#0f2747",
   "lang": "tr",
   "icons": [

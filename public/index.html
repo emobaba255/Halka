@@ -4,16 +4,26 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Okul — Topluluğunu ve kurslarını tek yerde topla</title>
-<link rel="icon" type="image/png" href="icon-192.png">
-<link rel="manifest" href="manifest.json">
+<meta name="description" content="Okul; tartışmalar, kurslar, canlı yayınlar ve seviye sistemiyle topluluğunu tek yerde toplamanı sağlar.">
+<meta property="og:title" content="Okul">
+<meta property="og:description" content="Topluluğunu ve kurslarını tek yerde topla.">
+<meta property="og:image" content="/icon-512.png">
 <meta name="theme-color" content="#0f2747">
+<link rel="icon" type="image/png" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800&display=swap">
 <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="loading">
+<div id="loader" aria-hidden="true"></div>
 <header id="top"></header>
-<main id="app"></main>
+<main id="app"><div class="splash"><img src="icon-192.png" alt="" width="72" height="72"><p>Okul yükleniyor…</p></div></main>
+<footer id="foot"><div class="wrap row spread"><span class="row"><img src="icon-192.png" alt="" width="26" height="26"><b>Okul</b><span class="hide-sm">· Topluluğunu ve kurslarını tek yerde topla</span></span><span>© <span id="year">2026</span> Okul</span></div></footer>
 <div id="toast" role="status" aria-live="polite"></div>
+<noscript><p style="padding:24px;text-align:center">Okul'u kullanmak için tarayıcında JavaScript'i açman gerekiyor.</p></noscript>
 <script src="app.js"></script>
 </body>
 </html>

@@ -16,9 +16,11 @@
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+main { flex: 1; }
 a { color: inherit; text-decoration: none; }
-h1, h2, h3 { margin: 0; line-height: 1.25; letter-spacing: -.01em; }
+h1, h2, h3, .logo, .brand { font-family: "Plus Jakarta Sans", Inter, system-ui, sans-serif; }
+h1, h2, h3 { margin: 0; line-height: 1.25; letter-spacing: -.015em; font-weight: 800; }
 h1 { font-size: 28px; } h2 { font-size: 19px; } h3 { font-size: 16px; }
 p { margin: 0; }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -37,8 +39,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #top .menu { color: var(--ink); }
 .topbar { height: 58px; }
 .logo { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 19px; letter-spacing: -.02em; }
-.logo svg { width: 28px; height: 28px; flex: none; display: block; }
-.logo span { letter-spacing: .01em; }
+.logo span { letter-spacing: -.01em; font-size: 21px; }
 .only-sm { display: none; }
 .switcher { position: relative; }
 .menu { position: absolute; top: calc(100% + 8px); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); min-width: 250px; padding: 6px; z-index: 30; max-height: 70vh; overflow: auto; }
@@ -249,3 +250,60 @@ body { overflow-wrap: break-word; }
 }
 .only-xs { display: none; }
 @media (max-width: 350px) { .only-sm { display: none; } .only-xs { display: inline; } }
+
+/* ===== Marka, simgeler ve son rötuşlar ===== */
+.ic { width: 1.15em; height: 1.15em; vertical-align: -.2em; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.iconbtn .ic { width: 19px; height: 19px; }
+.mark { width: 32px; height: 32px; flex: none; display: block; border-radius: 9px; }
+.mark.lg { width: 44px; height: 44px; border-radius: 12px; }
+.mark.xl { width: 60px; height: 60px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0, 0, 0, .25); }
+.logo { gap: 10px; font-weight: 800; }
+.brand { display: flex; align-items: center; justify-content: center; gap: 12px; font-weight: 800; font-size: 34px; letter-spacing: -.02em; color: #fff; }
+.brand.dark { color: var(--ink); font-size: 26px; }
+.topbar { height: 62px; }
+.btn { transition: background .15s, filter .15s, transform .05s; }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: .6; cursor: progress; }
+.btn.lg { padding: 12px 22px; font-size: 16px; border-radius: 12px; }
+.btn.gold { background: var(--gold-bright); border-color: var(--gold-bright); color: var(--navy); }
+.btn.gold:hover { filter: brightness(1.06); background: var(--gold-bright); }
+.btn.ghostlight { background: rgba(255, 255, 255, .1); border-color: rgba(255, 255, 255, .35); color: #fff; }
+.btn.ghostlight:hover { background: rgba(255, 255, 255, .18); }
+.btn.dangerfill { background: var(--danger); border-color: var(--danger); color: #fff; }
+@media (prefers-color-scheme: dark) { .btn.dangerfill { color: #1c0b0a; } }
+.like .ic { width: 15px; height: 15px; }
+.tag .ic { width: 12px; height: 12px; }
+
+/* Karşılama */
+.landing { background: linear-gradient(160deg, #0b1d38 0%, var(--navy) 45%, #17418f 100%); color: #fff; text-align: center; padding: 54px 0 46px; border-bottom: 3px solid var(--gold-bright); }
+.landing h1 { font-size: clamp(30px, 6.2vw, 50px); letter-spacing: -.03em; margin-top: 26px; }
+.landing > .wrap > p { max-width: 600px; margin: 14px auto 0; font-size: 17px; color: #cfdbf2; }
+.landing .cta { justify-content: center; margin-top: 26px; flex-wrap: wrap; }
+.features { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 42px; text-align: left; }
+.feature { display: flex; gap: 12px; padding: 16px; border-radius: var(--radius); background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .14); }
+.feature p { color: #c3d1ec; margin-top: 2px; }
+.ficon { flex: none; width: 38px; height: 38px; border-radius: 10px; background: var(--gold-bright); color: var(--navy); display: grid; place-items: center; font-size: 17px; }
+.search input { flex: 1; }
+
+/* Alt bilgi */
+#foot { border-top: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: 13px; padding: 16px 0; margin-top: 30px; }
+#foot b { color: var(--ink); font-family: "Plus Jakarta Sans", Inter, sans-serif; font-size: 15px; }
+#foot img { border-radius: 7px; display: block; }
+
+/* Yükleme */
+#loader { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 60; pointer-events: none; opacity: 0; transition: opacity .2s .15s; background: linear-gradient(90deg, transparent, var(--gold-bright), transparent); background-size: 50% 100%; background-repeat: no-repeat; }
+body.loading #loader { opacity: 1; animation: slide 1s linear infinite; }
+@keyframes slide { from { background-position: -50% 0; } to { background-position: 150% 0; } }
+@media (prefers-reduced-motion: reduce) { body.loading #loader { animation: none; background-size: 100% 100%; } }
+.splash { display: grid; place-items: center; gap: 14px; padding: 90px 16px; color: var(--muted); text-align: center; }
+.splash img { border-radius: 18px; box-shadow: var(--shadow); }
+
+/* Onay penceresi */
+dialog.modal { border: 1px solid var(--line); border-radius: 16px; padding: 22px; width: min(420px, calc(100vw - 32px)); background: var(--surface); color: var(--ink); box-shadow: 0 20px 60px rgba(8, 20, 40, .35); }
+dialog.modal::backdrop { background: rgba(8, 20, 40, .55); }
+dialog.modal h3 { font-size: 18px; }
+
+.card { transition: border-color .15s, box-shadow .15s, transform .15s; }
+a.card:hover { box-shadow: 0 2px 4px rgba(15, 39, 71, .08), 0 10px 26px rgba(15, 39, 71, .1); }
+.auth { margin-top: 40px; }
+.auth .brand { margin-bottom: 4px; }

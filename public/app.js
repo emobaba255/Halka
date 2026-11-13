@@ -16,6 +16,49 @@ function toast(msg) {
 }
 const go = hash => { if (location.hash === hash) route(); else location.hash = hash; };
 
+// ---------- Simgeler, logo, onay penceresi ----------
+const ICONS = {
+  mail: '<path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="m22 6-10 7L2 6"/>',
+  bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+  like: '<path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>',
+  comment: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>',
+  pin: '<path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
+  users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+  settings: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
+  chart: '<path d="M12 20V10M18 20V4M6 20v-4"/>',
+  clip: '<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
+  video: '<path d="m23 7-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>',
+  book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+  card: '<rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/>',
+  calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+};
+const ic = name => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+// Logo: mezuniyet kepi takmış "O"
+const logoMark = (cls = '') => `<svg class="mark ${cls}" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2f74ee"/><stop offset="1" stop-color="#1848b0"/></linearGradient></defs><rect width="48" height="48" rx="12" fill="url(#lg)"/><circle cx="24" cy="29" r="9" fill="none" stroke="#fff" stroke-width="5"/><path d="M24 8.5 41 15.5 24 22.5 7 15.5z" fill="#f2c14e" stroke="#2260d4" stroke-width="2" stroke-linejoin="round"/><path d="M36.5 18v6.5" stroke="#f2c14e" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg>`;
+// Tarayıcının ham onay kutuları yerine kendi penceremiz. Onayda true (ya da yazılan metin), vazgeçmede false (ya da null) döner.
+function ask({ title, text = '', ok = 'Evet', cancel = 'Vazgeç', danger = false, input = '' }) {
+  return new Promise(done => {
+    const d = document.createElement('dialog');
+    d.className = 'modal';
+    d.innerHTML = `<form method="dialog" class="stack"><h3>${esc(title)}</h3>${text ? `<p class="muted">${esc(text)}</p>` : ''}
+      ${input ? `<textarea maxlength="300" rows="3" placeholder="${esc(input)}" aria-label="${esc(input)}"></textarea>` : ''}
+      <div class="row" style="justify-content:flex-end"><button class="btn" value="no">${esc(cancel)}</button><button class="btn ${danger ? 'dangerfill' : 'primary'}" value="ok" data-ok>${esc(ok)}</button></div></form>`;
+    d.addEventListener('close', () => {
+      const yes = d.returnValue === 'ok', v = input ? (yes ? d.querySelector('textarea').value.trim() : null) : yes;
+      d.remove(); done(v);
+    });
+    document.body.append(d);
+    d.showModal();
+  });
+}
+
 // ---------- Biçimlendirme ----------
 const initials = n => String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toLocaleUpperCase('tr');
 const avatar = (name, color, level, cls = '', img = '') => `<span class="av ${cls}" style="--c:${esc(color)}" aria-hidden="true">${img ? `<img src="${esc(img)}" alt="">` : esc(initials(name))}${level ? `<b>${level}</b>` : ''}</span>`;
@@ -60,25 +103,25 @@ function renderTop() {
   const u = S.user;
   const switcher = u ? `
     <div class="switcher">
-      <button class="btn sm" data-act="menu" data-menu="comm" aria-expanded="${S.menu === 'comm'}"><span class="hide-sm">Topluluklarım</span><span class="only-sm">Topluluklar</span><span class="only-xs" aria-label="Topluluklar">👥</span> ▾</button>
+      <button class="btn sm" data-act="menu" data-menu="comm" aria-expanded="${S.menu === 'comm'}"><span class="hide-sm">Topluluklarım</span><span class="only-sm">Topluluklar</span><span class="only-xs" aria-label="Topluluklar">${ic('users')}</span> ▾</button>
       ${S.menu === 'comm' ? `<div class="menu left">
         ${S.communities.map(c => `<a href="#/c/${esc(c.slug)}"><span class="cicon" style="--c:${esc(c.color)}">${esc(c.emoji)}</span><span class="grow">${esc(c.name)}</span></a>`).join('') || '<div class="muted small" style="padding:10px">Henüz bir topluluğa katılmadın.</div>'}
-        <hr><a href="#/">🔎 Toplulukları keşfet</a><a href="#/new">➕ Topluluk kur</a></div>` : ''}
+        <hr><a href="#/">${ic('search')} Toplulukları keşfet</a><a href="#/new">${ic('plus')} Topluluk kur</a></div>` : ''}
     </div>` : '';
   const right = u ? `
-    <a class="iconbtn" href="#/m" aria-label="Mesajlar">✉️${S.unreadMessages ? `<span class="dot">${S.unreadMessages}</span>` : ''}</a>
+    <a class="iconbtn" href="#/m" aria-label="Mesajlar">${ic('mail')}${S.unreadMessages ? `<span class="dot">${S.unreadMessages}</span>` : ''}</a>
     <div class="switcher">
-      <button class="iconbtn" data-act="menu" data-menu="notes" aria-label="Bildirimler">🔔${S.unread ? `<span class="dot">${S.unread}</span>` : ''}</button>
+      <button class="iconbtn" data-act="menu" data-menu="notes" aria-label="Bildirimler">${ic('bell')}${S.unread ? `<span class="dot">${S.unread}</span>` : ''}</button>
       ${S.menu === 'notes' ? `<div class="menu right" style="width:320px">${renderNotes()}</div>` : ''}
     </div>
     <div class="switcher">
       <button class="iconbtn" style="border:0;padding:0" data-act="menu" data-menu="user" aria-label="Hesap menüsü">${avatar(u.name, u.color, 0, '', u.avatar)}</button>
       ${S.menu === 'user' ? `<div class="menu right">
         <div style="padding:8px 10px"><b>${esc(u.name)}</b><div class="muted small">${esc(u.email)}</div></div><hr>
-        <a href="#/u/${u.id}">👤 Profilim</a><a href="#/m">✉️ Mesajlar</a><a href="#/new">➕ Topluluk kur</a>
-        <button class="item" data-act="logout">↩ Çıkış yap</button></div>` : ''}
+        <a href="#/u/${u.id}">${ic('user')} Profilim</a><a href="#/m">${ic('mail')} Mesajlar</a><a href="#/new">${ic('plus')} Topluluk kur</a>
+        <button class="item" data-act="logout">${ic('logout')} Çıkış yap</button></div>` : ''}
     </div>` : `<a class="btn ghost" href="#/login">Giriş yap</a><a class="btn primary" href="#/register">Kayıt ol</a>`;
-  $('#top').innerHTML = `<div class="wrap row topbar"><a class="logo" href="#/" aria-label="Okul ana sayfa"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="11.5" fill="none" stroke="#d4a537" stroke-width="5"/><circle cx="16" cy="16" r="3.6" fill="#d4a537"/></svg><span>Okul</span></a>${switcher}<span class="grow"></span>${right}</div>`;
+  $('#top').innerHTML = `<div class="wrap row topbar"><a class="logo" href="#/" aria-label="Okul ana sayfa">${logoMark()}<span>Okul</span></a>${switcher}<span class="grow"></span>${right}</div>`;
 }
 function renderNotes() {
   if (!S.notes) return '<div class="muted small" style="padding:12px">Yükleniyor…</div>';
@@ -100,6 +143,7 @@ async function refreshMe() {
 let routeSeq = 0;
 async function route() {
   const seq = ++routeSeq;
+  document.body.classList.add('loading');
   const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
   S.menu = null; S.replyTo = null; S.live = null;
   renderTop();
@@ -125,6 +169,8 @@ async function route() {
     if (seq !== routeSeq) return;
     if (err.status === 401) return go('#/login');
     app.innerHTML = `<div class="wrap empty"><h2>${esc(err.message)}</h2><p style="margin-top:12px"><a class="btn" href="#/">Ana sayfaya dön</a></p></div>`;
+  } finally {
+    if (seq === routeSeq) document.body.classList.remove('loading');
   }
 }
 
@@ -132,18 +178,27 @@ async function route() {
 let discoverQ = '';
 async function viewDiscover() {
   const { items } = await api('/communities?q=' + encodeURIComponent(discoverQ));
-  return `<div class="wrap">
-    <section class="hero">
+  const feature = (icon, title, text) => `<div class="feature"><span class="ficon">${ic(icon)}</span><div><b>${title}</b><p class="small">${text}</p></div></div>`;
+  const landing = S.user ? '' : `<section class="landing"><div class="wrap">
+      <div class="brand">${logoMark('xl')}<span>Okul</span></div>
       <h1>Topluluğunu ve kurslarını<br>tek bir yerde topla</h1>
-      <p class="muted">Tartışmalar, dersler, etkinlikler ve üyeleri motive eden bir puan sistemi. Bir topluluğa katıl ya da kendininkini dakikalar içinde kur.</p>
-      <form class="search row" data-form="discover"><input type="search" name="q" placeholder="Topluluk ara…" value="${esc(discoverQ)}" aria-label="Topluluk ara"><button class="btn primary">Ara</button></form>
-    </section>
+      <p>Tartışmalar, dersler, canlı yayınlar ve üyeleri motive eden bir seviye sistemi. Bir topluluğa katıl ya da kendininkini dakikalar içinde kur.</p>
+      <div class="row cta"><a class="btn gold lg" href="#/register">Ücretsiz başla</a><a class="btn ghostlight lg" href="#/login">Giriş yap</a></div>
+      <div class="features">
+        ${feature('users', 'Topluluk', 'Gönderi, yorum, anket ve özel mesajlarla üyelerini bir araya getir.')}
+        ${feature('book', 'Kurslar', 'Derslerini bölümlere ayır, video ve dosya ekle, ilerlemeyi takip et.')}
+        ${feature('video', 'Canlı yayın', 'Yayınını toplulukta göster, üyelerinle anlık sohbet et.')}
+        ${feature('card', 'Üyelik geliri', 'Aylık ya da tek seferlik üyelik ücretini kendin belirle.')}
+      </div></div></section>`;
+  return `${landing}<div class="wrap">
+    <div class="row spread" style="margin:28px 0 14px;flex-wrap:wrap"><div><h2>Toplulukları keşfet</h2><p class="small muted">İlgini çeken bir topluluğa katıl.</p></div>${S.user ? `<a class="btn primary" href="#/new">${ic('plus')} Topluluk kur</a>` : ''}</div>
+    <form class="search row" data-form="discover" style="margin-bottom:18px"><input type="search" name="q" placeholder="Topluluk ara…" value="${esc(discoverQ)}" aria-label="Topluluk ara"><button class="btn primary">${ic('search')}<span class="hide-sm"> Ara</span></button></form>
     <div class="grid">${items.map(c => `
-      <a class="card ccard" href="#/c/${esc(c.slug)}" style="--c:${esc(c.color)}">
+      <a class="card ccard" href="#/c/${esc(c.slug)}">
         <div class="band" ${c.cover ? `style="background-image:url('${esc(c.cover)}')"` : ''}>${c.live ? '<em class="tag live-tag">● CANLI</em>' : ''}<span>${esc(c.emoji)}</span></div>
         <div class="body stack">
           <div><h3>${esc(c.name)}</h3><p class="muted small">${esc(c.tagline)}</p></div>
-          <div class="row small muted"><span class="tag">${esc(c.category)}</span><span>${c.members} üye</span><span>${c.is_private ? '🔒 Özel' : '🌍 Açık'}</span>${c.price_text ? `<span class="tag gold">${esc(c.price_text)}</span>` : ''}</div>
+          <div class="row small muted" style="flex-wrap:wrap"><span class="tag">${esc(c.category)}</span><span>${ic('users')} ${c.members} üye</span><span>${c.is_private ? ic('lock') + ' Özel' : ic('globe') + ' Açık'}</span>${c.price_text ? `<span class="tag gold">${esc(c.price_text)}</span>` : ''}</div>
         </div></a>`).join('') || '<div class="empty" style="grid-column:1/-1">Aramana uyan topluluk bulunamadı.</div>'}
     </div></div>`;
 }
@@ -152,6 +207,7 @@ async function viewDiscover() {
 function viewAuth(mode) {
   const reg = mode === 'register';
   return `<div class="wrap"><div class="card auth stack">
+    <div class="brand dark">${logoMark('lg')}<span>Okul</span></div>
     <h2>${reg ? 'Hesap oluştur' : 'Tekrar hoş geldin'}</h2>
     <form class="stack" data-form="${mode}">
       ${reg ? '<div><label for="f-name">Ad Soyad</label><input id="f-name" type="text" name="name" required minlength="2" maxlength="60" autocomplete="name"></div>' : ''}
@@ -192,7 +248,7 @@ async function viewProfile(id) {
   return `<div class="wrap"><div class="narrow stack">
     <div class="card stack">
       <div class="row" style="flex-wrap:wrap">${avatar(u.name, u.color, 0, 'lg', u.avatar)}<div class="grow"><h2>${esc(u.name)}</h2><p class="muted small">${fmtDate(u.created_at, { month: 'long', year: 'numeric' })} tarihinden beri üye</p></div>
-        ${!mine && canMessage ? `<a class="btn primary" href="#/m/${u.id}">✉️ Mesaj gönder</a>` : ''}</div>
+        ${!mine && canMessage ? `<a class="btn primary" href="#/m/${u.id}">${ic('mail')} Mesaj gönder</a>` : ''}</div>
       <p class="body-text">${rich(u.bio) || '<span class="muted">Henüz bir şey yazılmamış.</span>'}</p>
       ${mine ? `<details class="adminbox"><summary class="btn sm">Profili düzenle</summary>
         <form class="stack" data-form="profile">
@@ -272,7 +328,7 @@ const TABS = [['', 'Topluluk'], ['classroom', 'Sınıf'], ['calendar', 'Takvim']
 function tabsFor() {
   const t = C.community.tabs, list = TABS.filter(([k]) => !(k in t) || t[k]);
   if (C.community.live) list.splice(1, 0, ['live', '<span class="live-dot"></span> Canlı']);
-  if (C.role === 'admin') list.push(['admin', '⚙️ Panel']);
+  if (C.role === 'admin') list.push(['admin', ic('settings') + ' Panel']);
   return list;
 }
 async function viewCommunity(slug, tab = '', x, y) {
@@ -338,17 +394,17 @@ async function tabFeed() {
     <form data-form="feedSearch"><input type="search" name="q" value="${esc(f.q)}" placeholder="Gönderilerde ara…" aria-label="Gönderilerde ara"></form>
     ${posts.map(p => `
       <article class="card post ${p.pinned ? 'pinned' : ''}" data-act="open" data-href="#/c/${esc(c.slug)}/p/${p.id}">
-        ${p.pinned ? '<div class="small" style="color:var(--gold);font-weight:700;margin-bottom:8px">📌 Sabitlendi</div>' : ''}
+        ${p.pinned ? '<div class="small" style="color:var(--gold);font-weight:700;margin-bottom:8px">' + ic('pin') + ' Sabitlendi</div>' : ''}
         ${byline(p)}
         <h3><a href="#/c/${esc(c.slug)}/p/${p.id}">${esc(p.title)}</a></h3>
         <p class="muted clamp body-text">${esc(p.body)}</p>
         ${p.image ? `<img class="post-img thumb" src="${esc(p.image)}" alt="" loading="lazy">` : ''}
-        <div class="row" style="margin-top:12px;flex-wrap:wrap">${likeBtn('post', p)}<span class="small muted">💬 ${p.comments} yorum</span>${p.poll ? '<span class="tag">📊 Anket</span>' : ''}${p.file ? '<span class="tag">📎 Dosya</span>' : ''}</div>
+        <div class="row" style="margin-top:12px;flex-wrap:wrap">${likeBtn('post', p)}<span class="small muted">${ic('comment')} ${p.comments} yorum</span>${p.poll ? '<span class="tag">' + ic('chart') + ' Anket</span>' : ''}${p.file ? '<span class="tag">' + ic('clip') + ' Dosya</span>' : ''}</div>
       </article>`).join('') || '<div class="card empty">Burada henüz gönderi yok.</div>'}`;
 }
 const ytId = s => /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:\S*&)?v=|embed\/|shorts\/|live\/))([\w-]{11})/.exec(String(s || ''))?.[1] || '';
 const ytFrame = (id, title, extra = '') => `<div class="video"><iframe src="https://www.youtube-nocookie.com/embed/${esc(id)}${extra}" title="${esc(title)}" allow="accelerometer; autoplay; encrypted-media; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>`;
-const fileLink = (url, name) => (url ? `<a class="file" href="${esc(url)}" download="${esc(name)}">📎 <span>${esc(name)}</span><b>İndir</b></a>` : '');
+const fileLink = (url, name) => (url ? `<a class="file" href="${esc(url)}" download="${esc(name)}">${ic('clip')} <span>${esc(name)}</span><b>İndir</b></a>` : '');
 function pollBox(p) {
   const pl = p.poll;
   if (!pl) return '';
@@ -358,7 +414,7 @@ function pollBox(p) {
   }).join('')}<div class="small muted">${pl.total} oy${pl.my != null ? ' · oyunu değiştirebilirsin' : ' · oy vermek için bir seçeneğe dokun'}</div></div>`;
 }
 const byline = p => `<div class="row">${avatar(p.author_name, p.author_color, p.author_level, '', p.author_avatar)}<div class="grow"><a href="#/u/${p.user_id}" data-stop><b>${esc(p.author_name)}</b></a><div class="small muted">${ago(p.created_at)}${p.category ? ` · <span class="tag">${esc(p.category)}</span>` : ''}</div></div></div>`;
-const likeBtn = (type, t) => `<button class="like ${t.liked ? 'on' : ''}" data-act="like" data-type="${type}" data-id="${t.id}" aria-pressed="${!!t.liked}" ${t.user_id === S.user.id ? 'disabled title="Kendi içeriğini beğenemezsin"' : ''}>👍 <span>${t.likes}</span></button>`;
+const likeBtn = (type, t) => `<button class="like ${t.liked ? 'on' : ''}" data-act="like" data-type="${type}" data-id="${t.id}" aria-pressed="${!!t.liked}" ${t.user_id === S.user.id ? 'disabled title="Kendi içeriğini beğenemezsin"' : ''}>${ic('like')} <span>${t.likes}</span></button>`;
 
 async function tabPost(id) {
   const { post: p, comments, role } = await api('/posts/' + encodeURIComponent(id));
@@ -377,8 +433,8 @@ async function tabPost(id) {
       ${ytId(p.body) ? ytFrame(ytId(p.body), p.title) : ''}
       ${pollBox(p)}
       ${fileLink(p.file, p.file_name)}
-      <div class="row" style="flex-wrap:wrap">${likeBtn('post', p)}<span class="small muted">💬 ${p.comments} yorum</span><span class="grow"></span>
-        ${role === 'admin' ? `<button class="btn sm" data-act="pin" data-id="${p.id}">${p.pinned ? 'Sabitlemeyi kaldır' : '📌 Sabitle'}</button>` : ''}
+      <div class="row" style="flex-wrap:wrap">${likeBtn('post', p)}<span class="small muted">${ic('comment')} ${p.comments} yorum</span><span class="grow"></span>
+        ${role === 'admin' ? `<button class="btn sm" data-act="pin" data-id="${p.id}">${p.pinned ? 'Sabitlemeyi kaldır' : ic('pin') + ' Sabitle'}</button>` : ''}
         ${canDel(p) ? `<button class="btn sm danger" data-act="delPost" data-id="${p.id}">Sil</button>` : ''}</div>
     </article>
     <section class="card stack"><h3>Yorumlar</h3>
@@ -395,7 +451,7 @@ async function tabClassroom() {
   const slug = C.community.slug;
   const { courses, myLevel } = await api(`/communities/${encodeURIComponent(slug)}/courses`);
   return `<div class="row spread"><h2>Sınıf</h2></div>
-    ${C.role === 'admin' ? `<details class="card adminbox"><summary>➕ Yeni kurs ekle</summary>
+    ${C.role === 'admin' ? `<details class="card adminbox"><summary>${ic('plus')} Yeni kurs ekle</summary>
       <form class="stack" data-form="course">
         <div class="row" style="align-items:flex-end"><div style="width:80px"><label for="c-emoji">Simge</label><input id="c-emoji" type="text" name="emoji" value="📘" maxlength="4"></div>
         <div class="grow"><label for="c-title">Kurs adı</label><input id="c-title" type="text" name="title" required minlength="3" maxlength="80"></div></div>
@@ -405,7 +461,7 @@ async function tabClassroom() {
     <div class="grid" style="padding:0;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))">
     ${courses.map(k => {
       const pct = k.total ? Math.round(k.done * 100 / k.total) : 0, locked = C.role !== 'admin' && myLevel < k.min_level;
-      const inner = `<div class="row spread"><span style="font-size:34px">${esc(k.emoji)}</span>${k.min_level > 1 ? `<span class="tag gold">${locked ? '🔒 ' : ''}Seviye ${k.min_level}+</span>` : ''}</div>
+      const inner = `<div class="row spread"><span style="font-size:34px">${esc(k.emoji)}</span>${k.min_level > 1 ? `<span class="tag gold">${locked ? ic('lock') + ' ' : ''}Seviye ${k.min_level}+</span>` : ''}</div>
         <div><h3>${esc(k.title)}</h3><p class="small muted clamp">${esc(k.description)}</p></div>
         ${locked ? `<p class="small muted">Seviye ${k.min_level}'e ulaşınca açılır. Şu an Seviye ${myLevel}'desin.</p>`
           : `<div><div class="bar" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div><div class="small muted" style="margin-top:4px">${k.done}/${k.total} ders · %${pct}</div></div>`}`;
@@ -426,7 +482,7 @@ async function tabCourse(courseId, lessonId) {
       <div><h3>${esc(course.emoji)} ${esc(course.title)}</h3><div class="bar" style="margin-top:10px"><i style="width:${pct}%"></i></div><div class="small muted" style="margin-top:4px">%${pct} tamamlandı</div></div>
       ${modules.map(m => `<div><div class="small muted" style="font-weight:700;margin-bottom:4px">${esc(m)}</div>
         ${lessons.filter(l => l.module === m).map(l => `<a class="lesson-link ${cur && l.id === cur.id ? 'on' : ''}" href="${href(l)}"><span class="tick ${l.done ? 'done' : ''}">✓</span><span class="grow">${esc(l.title)}</span></a>`).join('')}</div>`).join('')}
-      ${C.role === 'admin' ? `<details class="adminbox"><summary class="btn sm block">➕ Ders ekle</summary>
+      ${C.role === 'admin' ? `<details class="adminbox"><summary class="btn sm block">${ic('plus')} Ders ekle</summary>
         <form class="stack" data-form="lesson" data-course="${course.id}">
           <div><label for="l-mod">Bölüm</label><input id="l-mod" type="text" name="module" required maxlength="60" list="mods" value="${esc(modules.at(-1) || '')}"><datalist id="mods">${modules.map(m => `<option value="${esc(m)}">`).join('')}</datalist></div>
           <div><label for="l-title">Ders adı</label><input id="l-title" type="text" name="title" required minlength="2" maxlength="100"></div>
@@ -472,7 +528,7 @@ async function tabCalendar() {
       <div class="small body-text">${rich(e.description)}</div>${e.link ? `<a class="small" style="color:var(--accent);font-weight:600" href="${esc(e.link)}" target="_blank" rel="noopener noreferrer">Katılım bağlantısı ↗</a>` : ''}</div>
     ${C.role === 'admin' ? `<button class="linkbtn" data-act="delEvent" data-id="${e.id}">Sil</button>` : ''}</div>`;
   return `
-    ${C.role === 'admin' ? `<details class="card adminbox"><summary>➕ Etkinlik ekle</summary>
+    ${C.role === 'admin' ? `<details class="card adminbox"><summary>${ic('plus')} Etkinlik ekle</summary>
       <form class="stack" data-form="event">
         <div><label for="e-title">Etkinlik adı</label><input id="e-title" type="text" name="title" required minlength="3" maxlength="100"></div>
         <div class="row" style="align-items:flex-end"><div class="grow"><label for="e-when">Tarih ve saat</label><input id="e-when" type="datetime-local" name="when" required></div>
@@ -528,7 +584,7 @@ async function tabLeaderboard() {
 function joinBox(block) {
   const c = C.community, gated = c.is_private || c.price_text;
   const pay = c.pay_info ? `<div class="notice small"><b>Ödeme bilgisi</b><div class="body-text">${rich(c.pay_info)}</div></div>` : '';
-  if (C.pending) return `<div class="stack"><p class="small"><b>⏳ ${C.expired ? 'Yenileme' : 'Katılma'} isteğin yönetici onayı bekliyor.</b></p>${pay}
+  if (C.pending) return `<div class="stack"><p class="small"><b>${ic('clock')} ${C.expired ? 'Yenileme' : 'Katılma'} isteğin yönetici onayı bekliyor.</b></p>${pay}
     <div><button class="btn sm" data-act="cancelRequest">İsteği geri çek</button></div></div>`;
   if (C.expired) return `<div class="stack"><p class="small"><b>Üyeliğinin süresi doldu.</b> Devam etmek için ${esc(c.price_text || 'üyeliğini')} ödemesini yapıp yenileme isteği gönder.</p>${pay}
     <button class="btn primary ${block ? 'block' : ''}" data-act="join">Ödeme yaptım, üyeliğimi yenile</button></div>`;
@@ -541,10 +597,10 @@ function tabAbout() {
   return `<div class="card stack">
       ${c.cover ? `<img class="cover" src="${esc(c.cover)}" alt="">` : ''}
       <div class="row"><span class="cicon lg">${esc(c.emoji)}</span><div class="grow"><h1>${esc(c.name)}</h1><p class="muted">${esc(c.tagline)}</p></div></div>
-      <div class="row small muted" style="flex-wrap:wrap"><span class="tag">${esc(c.category)}</span><span>${c.is_private ? '🔒 Özel' : '🌍 Açık'}</span>${c.price_text ? `<span class="tag gold">${esc(c.price_text)}</span>` : '<span class="tag">Ücretsiz</span>'}<span>👥 ${C.stats.members} üye</span><span>Kurucu: <b>${esc(C.owner.name)}</b></span><span>${fmtDate(c.created_at, { month: 'long', year: 'numeric' })}</span></div>
+      <div class="row small muted" style="flex-wrap:wrap"><span class="tag">${esc(c.category)}</span><span>${c.is_private ? ic('lock') + ' Özel' : ic('globe') + ' Açık'}</span>${c.price_text ? `<span class="tag gold">${esc(c.price_text)}</span>` : '<span class="tag">Ücretsiz</span>'}<span>${ic('users')} ${C.stats.members} üye</span><span>Kurucu: <b>${esc(C.owner.name)}</b></span><span>${fmtDate(c.created_at, { month: 'long', year: 'numeric' })}</span></div>
       <div class="body-text">${rich(c.description) || '<span class="muted">Açıklama eklenmemiş.</span>'}</div>
       ${C.role ? '' : `<p class="small muted">Gönderiler, kurslar ve etkinlikler yalnızca üyelere görünür.</p>`}
-      ${C.role === 'admin' ? `<div><a class="btn" href="#/c/${esc(c.slug)}/admin/settings">⚙️ Yönetim panelinde düzenle</a></div>` : ''}
+      ${C.role === 'admin' ? `<div><a class="btn" href="#/c/${esc(c.slug)}/admin/settings">${ic('settings')} Yönetim panelinde düzenle</a></div>` : ''}
     </div>`;
 }
 
@@ -691,33 +747,33 @@ const acts = {
     if (!S.user) return go('#/register');
     let note = '';
     if (C.community.is_private || C.community.price_text) {
-      note = prompt('Yöneticiye bir not bırakmak ister misin? (isteğe bağlı)', '');
+      note = await ask({ title: 'Katılma isteği gönder', text: 'Yöneticiye bir not bırakabilirsin (isteğe bağlı).', input: 'Notun', ok: 'İsteği gönder' });
       if (note === null) return;
     }
     const r = await api(slugPath() + '/join', 'POST', { note });
     await refreshMe();
     if (r.pending) { toast('İsteğin gönderildi, yönetici onayı bekleniyor'); return route(); }
-    toast('Topluluğa katıldın 🎉'); go(`#/c/${C.community.slug}`);
+    toast('Topluluğa katıldın'); go(`#/c/${C.community.slug}`);
   },
   async vote(el) { await api(`/posts/${el.dataset.id}/vote`, 'POST', { option: Number(el.dataset.i) }); route(); },
   async acceptInvite(el) {
     if (!S.user) { try { sessionStorage.setItem('after', location.hash); } catch { /* yok say */ } return go('#/register'); }
-    const r = await api('/invite/' + el.dataset.code, 'POST'); await refreshMe(); toast('Topluluğa katıldın 🎉'); go('#/c/' + r.slug);
+    const r = await api('/invite/' + el.dataset.code, 'POST'); await refreshMe(); toast('Topluluğa katıldın'); go('#/c/' + r.slug);
   },
   async copyInvite() {
     const inp = $('#inviteLink');
     try { await navigator.clipboard.writeText(inp.value); } catch { inp.select(); document.execCommand('copy'); }
     toast('Davet bağlantısı kopyalandı');
   },
-  async resetInvite() { if (!confirm('Bağlantı yenilensin mi? Eski bağlantı artık çalışmaz.')) return; await api(slugPath() + '/invite', 'POST'); toast('Davet bağlantısı yenilendi'); route(); },
+  async resetInvite() { if (!await ask({ title: 'Bağlantı yenilensin mi? Eski bağlantı artık çalışmaz.', danger: true })) return; await api(slugPath() + '/invite', 'POST'); toast('Davet bağlantısı yenilendi'); route(); },
   async extend(el) { await api(`${slugPath()}/members/${el.dataset.id}`, 'POST', { extendDays: Number(el.dataset.days) }); toast('Üyelik 30 gün uzatıldı'); route(); },
   async unlimited(el) { await api(`${slugPath()}/members/${el.dataset.id}`, 'POST', { unlimited: true }); toast('Üyelik süresiz yapıldı'); route(); },
   async setRole(el) { await api(`${slugPath()}/members/${el.dataset.id}`, 'POST', { role: el.dataset.role }); toast('Rol güncellendi'); route(); },
-  async liveStop() { if (!confirm('Canlı yayın bitirilsin mi? Sohbet temizlenir.')) return; await api(slugPath() + '/live', 'DELETE'); toast('Yayın bitirildi'); route(); },
+  async liveStop() { if (!await ask({ title: 'Canlı yayın bitirilsin mi? Sohbet temizlenir.', danger: true })) return; await api(slugPath() + '/live', 'DELETE'); toast('Yayın bitirildi'); route(); },
   async cancelRequest() { await api(slugPath() + '/join', 'DELETE'); toast('İstek geri çekildi'); route(); },
   async decide(el) { await api(`${slugPath()}/requests/${el.dataset.id}`, 'POST', { approve: !!el.dataset.ok }); toast(el.dataset.ok ? 'Üye onaylandı' : 'İstek reddedildi'); route(); },
-  async kick(el) { if (!confirm(`${el.dataset.name} topluluktan çıkarılsın mı?`)) return; await api(`${slugPath()}/members/${el.dataset.id}`, 'DELETE'); route(); },
-  async leave() { if (!confirm('Topluluktan ayrılmak istediğine emin misin?')) return; await api(slugPath() + '/leave', 'POST'); await refreshMe(); go('#/'); },
+  async kick(el) { if (!await ask({ title: `${el.dataset.name} topluluktan çıkarılsın mı?`, danger: true })) return; await api(`${slugPath()}/members/${el.dataset.id}`, 'DELETE'); route(); },
+  async leave() { if (!await ask({ title: 'Topluluktan ayrılmak istediğine emin misin?', danger: true })) return; await api(slugPath() + '/leave', 'POST'); await refreshMe(); go('#/'); },
   open(el, ev) { if (!ev.target.closest('a,button')) location.hash = el.dataset.href; },
   feedCat(el) { S.feed.category = el.dataset.v; route(); },
   async like(el) {
@@ -731,24 +787,24 @@ const acts = {
     $('#commentForm textarea').focus();
   },
   cancelReply() { S.replyTo = null; $('#replyInfo').hidden = true; },
-  async delComment(el) { if (!confirm('Yorum silinsin mi?')) return; await api('/comments/' + el.dataset.id, 'DELETE'); route(); },
-  async delPost(el) { if (!confirm('Gönderi silinsin mi?')) return; await api('/posts/' + el.dataset.id, 'DELETE'); toast('Gönderi silindi'); go(`#/c/${C.community.slug}`); },
+  async delComment(el) { if (!await ask({ title: 'Yorum silinsin mi?', danger: true })) return; await api('/comments/' + el.dataset.id, 'DELETE'); route(); },
+  async delPost(el) { if (!await ask({ title: 'Gönderi silinsin mi?', danger: true })) return; await api('/posts/' + el.dataset.id, 'DELETE'); toast('Gönderi silindi'); go(`#/c/${C.community.slug}`); },
   async pin(el) { await api(`/posts/${el.dataset.id}/pin`, 'POST'); route(); },
   async complete(el) { await api(`/lessons/${el.dataset.id}/complete`, 'POST'); if (el.dataset.next) location.hash = el.dataset.next; else route(); },
-  async delCourse(el) { if (!confirm('Kurs ve tüm dersleri silinsin mi?')) return; await api('/courses/' + el.dataset.id, 'DELETE'); go(`#/c/${C.community.slug}/classroom`); },
+  async delCourse(el) { if (!await ask({ title: 'Kurs ve tüm dersleri silinsin mi?', danger: true })) return; await api('/courses/' + el.dataset.id, 'DELETE'); go(`#/c/${C.community.slug}/classroom`); },
   calNav(el) { S.calMonth = new Date(S.calMonth.getFullYear(), S.calMonth.getMonth() + Number(el.dataset.d), 1); route(); },
   showEvent(el) {
     const card = $('#ev-' + el.dataset.id); if (!card) return;
     const d = card.closest('details'); if (d) d.open = true;
     card.scrollIntoView({ behavior: 'smooth', block: 'center' });
   },
-  async delEvent(el) { if (!confirm('Etkinlik silinsin mi?')) return; await api('/events/' + el.dataset.id, 'DELETE'); route(); },
+  async delEvent(el) { if (!await ask({ title: 'Etkinlik silinsin mi?', danger: true })) return; await api('/events/' + el.dataset.id, 'DELETE'); route(); },
 };
 const forms = {
   discover(d) { discoverQ = d.q.trim(); route(); },
   async login(d) { await api('/auth/login', 'POST', d); await refreshMe(); go(afterAuth()); },
   async register(d) { await api('/auth/register', 'POST', d); await refreshMe(); toast('Hoş geldin!'); go(afterAuth()); },
-  async newCommunity(d) { const r = await api('/communities', 'POST', { ...d, isPrivate: !!d.isPrivate }); await refreshMe(); toast('Topluluğun hazır 🎉'); go('#/c/' + r.slug); },
+  async newCommunity(d) { const r = await api('/communities', 'POST', { ...d, isPrivate: !!d.isPrivate }); await refreshMe(); toast('Topluluğun hazır'); go('#/c/' + r.slug); },
   async profile(d) {
     let avatar = d.removePhoto ? '' : S.user.avatar;
     if (d.photo && d.photo.size) avatar = await upload(d.photo, 400);
@@ -844,5 +900,6 @@ setInterval(async () => {
   } catch { /* geçici ağ hatası: bir sonraki turda yeniden denenir */ }
 }, 6000);
 
+$('#year').textContent = new Date().getFullYear();
 window.addEventListener('hashchange', route);
 refreshMe().then(route, route);
