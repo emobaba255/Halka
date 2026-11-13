@@ -1,4 +1,4 @@
-/* Halka — tek sayfa arayüzü (bağımlılıksız) */
+/* Okul — tek sayfa arayüzü (bağımlılıksız) */
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const S = { user: null, communities: [], unread: 0, menu: null, notes: null, feed: { category: '', sort: 'new', q: '' }, calMonth: null, replyTo: null };
@@ -53,7 +53,7 @@ function renderTop() {
         <a href="#/u/${u.id}">👤 Profilim</a><a href="#/new">➕ Topluluk kur</a>
         <button class="item" data-act="logout">↩ Çıkış yap</button></div>` : ''}
     </div>` : `<a class="btn ghost" href="#/login">Giriş yap</a><a class="btn primary" href="#/register">Kayıt ol</a>`;
-  $('#top').innerHTML = `<div class="wrap row topbar"><a class="logo" href="#/"><i></i><span class="hide-sm">Halka</span></a>${switcher}<span class="grow"></span>${right}</div>`;
+  $('#top').innerHTML = `<div class="wrap row topbar"><a class="logo" href="#/"><i></i><span class="hide-sm">Okul</span></a>${switcher}<span class="grow"></span>${right}</div>`;
 }
 function renderNotes() {
   if (!S.notes) return '<div class="muted small" style="padding:12px">Yükleniyor…</div>';
@@ -127,7 +127,7 @@ function viewAuth(mode) {
       <button class="btn primary block">${reg ? 'Kayıt ol' : 'Giriş yap'}</button>
     </form>
     <p class="small muted">${reg ? 'Zaten hesabın var mı? <a href="#/login"><b>Giriş yap</b></a>' : 'Hesabın yok mu? <a href="#/register"><b>Kayıt ol</b></a>'}</p>
-    ${reg ? '' : '<p class="small muted">Denemek için: <b>demo@halka.app</b> / <b>demo1234</b> <button class="linkbtn" data-act="demo" style="color:var(--accent)">Demo ile gir →</button></p>'}
+    ${reg ? '' : '<p class="small muted">Denemek için: <b>demo@okul.app</b> / <b>demo1234</b> <button class="linkbtn" data-act="demo" style="color:var(--accent)">Demo ile gir →</button></p>'}
   </div></div>`;
 }
 
@@ -414,7 +414,7 @@ const acts = {
     if (S.menu === 'notes') { S.notes = (await api('/notifications')).items; S.unread = 0; if (S.menu === 'notes') renderTop(); }
   },
   async logout() { await api('/auth/logout', 'POST'); await refreshMe(); go('#/'); },
-  async demo() { await api('/auth/login', 'POST', { email: 'demo@halka.app', password: 'demo1234' }); await refreshMe(); go('#/c/tasarim-atolyesi'); },
+  async demo() { await api('/auth/login', 'POST', { email: 'demo@okul.app', password: 'demo1234' }); await refreshMe(); go('#/c/tasarim-atolyesi'); },
   async join() {
     if (!S.user) return go('#/register');
     await api(slugPath() + '/join', 'POST'); await refreshMe(); toast('Topluluğa katıldın 🎉'); go(`#/c/${C.community.slug}`);

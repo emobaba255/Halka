@@ -3,7 +3,7 @@ const { DatabaseSync } = require('node:sqlite');
 const crypto = require('crypto');
 const path = require('path');
 
-const db = new DatabaseSync(process.env.DB_PATH || path.join(__dirname, 'halka.db'));
+const db = new DatabaseSync(process.env.DB_PATH || path.join(__dirname, 'okul.db'));
 db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
 
 db.exec(`
@@ -73,14 +73,14 @@ function seed() {
 
   const pass = hashPassword('demo1234');
   const people = [
-    ['Deniz Aydın', 'demo@halka.app', 'Ürün tasarımcısı. Öğrenmeyi ve paylaşmayı severim.'],
-    ['Elif Kara', 'elif@halka.app', 'Topluluk kurucusu, eğitmen.'],
-    ['Mert Yıldız', 'mert@halka.app', 'Yazılım geliştirici, kahve bağımlısı.'],
-    ['Zeynep Arslan', 'zeynep@halka.app', 'Serbest çalışan illüstratör.'],
-    ['Can Öztürk', 'can@halka.app', 'Koşucu, girişimci.'],
-    ['Selin Demir', 'selin@halka.app', 'İçerik üreticisi.'],
-    ['Burak Şahin', 'burak@halka.app', 'Veri analisti.'],
-    ['Ayşe Çelik', 'ayse@halka.app', 'Yeni mezun, meraklı.'],
+    ['Deniz Aydın', 'demo@okul.app', 'Ürün tasarımcısı. Öğrenmeyi ve paylaşmayı severim.'],
+    ['Elif Kara', 'elif@okul.app', 'Topluluk kurucusu, eğitmen.'],
+    ['Mert Yıldız', 'mert@okul.app', 'Yazılım geliştirici, kahve bağımlısı.'],
+    ['Zeynep Arslan', 'zeynep@okul.app', 'Serbest çalışan illüstratör.'],
+    ['Can Öztürk', 'can@okul.app', 'Koşucu, girişimci.'],
+    ['Selin Demir', 'selin@okul.app', 'İçerik üreticisi.'],
+    ['Burak Şahin', 'burak@okul.app', 'Veri analisti.'],
+    ['Ayşe Çelik', 'ayse@okul.app', 'Yeni mezun, meraklı.'],
   ];
   const U = people.map(([n, e, b], i) =>
     ins('INSERT INTO users(name,email,pass,bio,color,created_at) VALUES(?,?,?,?,?,?)', n, e, pass, b, COLORS[i % COLORS.length], now - (60 - i) * D));

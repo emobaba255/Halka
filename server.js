@@ -389,4 +389,4 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Halka http://localhost:${PORT} adresinde çalışıyor`));
+app.listen(PORT, () => console.log(`Okul http://localhost:${PORT} adresinde çalışıyor`));
