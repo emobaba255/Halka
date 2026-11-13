@@ -15,16 +15,18 @@ CREATE TABLE IF NOT EXISTS sessions(
 CREATE TABLE IF NOT EXISTS communities(
   id INTEGER PRIMARY KEY, slug TEXT NOT NULL UNIQUE, name TEXT NOT NULL, tagline TEXT DEFAULT '',
   description TEXT DEFAULT '', category TEXT DEFAULT 'Genel', is_private INTEGER DEFAULT 0, price_text TEXT DEFAULT '', pay_info TEXT DEFAULT '',
+  price_type TEXT DEFAULT 'free', price_amount INTEGER DEFAULT 0, invite_code TEXT DEFAULT '', tabs TEXT DEFAULT '',
+  post_role TEXT DEFAULT 'member', cover TEXT DEFAULT '', live_video TEXT DEFAULT '', live_title TEXT DEFAULT '', live_started INTEGER DEFAULT 0,
   categories TEXT NOT NULL, owner_id INTEGER NOT NULL REFERENCES users(id),
   color TEXT NOT NULL, emoji TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS memberships(
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
-  role TEXT NOT NULL DEFAULT 'member', joined_at INTEGER NOT NULL, PRIMARY KEY(user_id, community_id));
+  role TEXT NOT NULL DEFAULT 'member', joined_at INTEGER NOT NULL, paid_until INTEGER DEFAULT 0, PRIMARY KEY(user_id, community_id));
 CREATE TABLE IF NOT EXISTS posts(
   id INTEGER PRIMARY KEY, community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
   user_id INTEGER NOT NULL REFERENCES users(id), title TEXT NOT NULL, body TEXT NOT NULL,
-  category TEXT NOT NULL, pinned INTEGER DEFAULT 0, image TEXT DEFAULT '', created_at INTEGER NOT NULL);
+  category TEXT NOT NULL, pinned INTEGER DEFAULT 0, image TEXT DEFAULT '', poll TEXT DEFAULT '', file TEXT DEFAULT '', file_name TEXT DEFAULT '', created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS comments(
   id INTEGER PRIMARY KEY, post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
   user_id INTEGER NOT NULL REFERENCES users(id), parent_id INTEGER, body TEXT NOT NULL, created_at INTEGER NOT NULL);
@@ -36,10 +38,10 @@ CREATE INDEX IF NOT EXISTS likes_target ON likes(target_type, target_id);
 CREATE INDEX IF NOT EXISTS likes_comm ON likes(community_id, author_id);
 CREATE TABLE IF NOT EXISTS courses(
   id INTEGER PRIMARY KEY, community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
-  title TEXT NOT NULL, description TEXT DEFAULT '', emoji TEXT DEFAULT '📘', created_at INTEGER NOT NULL);
+  title TEXT NOT NULL, description TEXT DEFAULT '', emoji TEXT DEFAULT '📘', min_level INTEGER DEFAULT 1, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS lessons(
   id INTEGER PRIMARY KEY, course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
-  module TEXT NOT NULL, title TEXT NOT NULL, content TEXT DEFAULT '', video TEXT DEFAULT '', position INTEGER NOT NULL);
+  module TEXT NOT NULL, title TEXT NOT NULL, content TEXT DEFAULT '', video TEXT DEFAULT '', file TEXT DEFAULT '', file_name TEXT DEFAULT '', position INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS progress(
   user_id INTEGER NOT NULL, lesson_id INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
   PRIMARY KEY(user_id, lesson_id));
@@ -58,11 +60,18 @@ CREATE TABLE IF NOT EXISTS messages(
   id INTEGER PRIMARY KEY, from_id INTEGER NOT NULL, to_id INTEGER NOT NULL, body TEXT NOT NULL,
   is_read INTEGER DEFAULT 0, created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS messages_pair ON messages(from_id, to_id);
+CREATE TABLE IF NOT EXISTS poll_votes(
+  post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE, user_id INTEGER NOT NULL, option_idx INTEGER NOT NULL,
+  PRIMARY KEY(post_id, user_id));
+CREATE TABLE IF NOT EXISTS live_chat(
+  id INTEGER PRIMARY KEY, community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL, body TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS resets(
   token TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires_at INTEGER NOT NULL);
 `);
 
-const COLORS = ['#0e7a6d', '#b4531f', '#5b4bc4', '#a8325e', '#2f6fb3', '#7a6a12', '#3d7d3a', '#8a4fb0'];
+// Marka renkleri: lacivert, mavi, altın. Profil ve topluluk renkleri yalnızca bunlardan seçilir.
+const COLORS = ['#0f2747', '#1f5fd6', '#9a7016'];
 const DEFAULT_CATEGORIES = ['Genel', 'Duyurular', 'Sorular', 'Kazanımlar'];
 
 function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
@@ -101,13 +110,14 @@ function seed() {
 
   const c1 = mkCommunity('tasarim-atolyesi', 'Tasarım Atölyesi', 'Arayüz tasarımını birlikte öğrenen üreticiler',
     'Tasarım Atölyesi; arayüz, tipografi ve ürün düşüncesi üzerine çalışan herkes için açık bir topluluktur.\n\nHer hafta canlı eleştiri oturumu yapıyor, kurslarımızı adım adım ilerliyor ve işlerimizi paylaşıyoruz. Yeni başlayan da olsan, yıllardır tasarlıyor da olsan yerin hazır.',
-    'Tasarım', '🎨', '#5b4bc4', U[1]);
+    'Tasarım', '🎨', COLORS[1], U[1]);
   const c2 = mkCommunity('kod-kampi', 'Kod Kampı', 'Sıfırdan web geliştirmeye, proje yaparak',
-    'Kod Kampı, web geliştirmeyi proje üreterek öğrenmek isteyenlerin buluşma noktası.\n\nSoru sor, kodunu paylaş, haftalık meydan okumalara katıl.', 'Yazılım', '💻', '#2f6fb3', U[2]);
+    'Kod Kampı, web geliştirmeyi proje üreterek öğrenmek isteyenlerin buluşma noktası.\n\nSoru sor, kodunu paylaş, haftalık meydan okumalara katıl.', 'Yazılım', '💻', COLORS[0], U[2]);
   const c3 = mkCommunity('sabah-kosuculari', 'Sabah Koşucuları', 'Güne koşarak başlayanların kulübü',
-    'Her sabah 06:30. Tempo fark etmez, önemli olan çıkmak.\n\nAntrenman planları, yarış takvimi ve bolca motivasyon.', 'Spor', '🏃', '#b4531f', U[4], 1);
+    'Her sabah 06:30. Tempo fark etmez, önemli olan çıkmak.\n\nAntrenman planları, yarış takvimi ve bolca motivasyon.', 'Spor', '🏃', COLORS[2], U[4], 1);
 
-  db.prepare('UPDATE communities SET price_text=?, pay_info=? WHERE id=?').run('₺150 / ay',
+  db.exec("UPDATE communities SET invite_code=lower(hex(randomblob(8)))");
+  db.prepare("UPDATE communities SET price_type='monthly', price_amount=150, price_text=?, pay_info=? WHERE id=?").run('₺150 / ay',
     'Üyelik ücretini aşağıdaki hesaba gönderip açıklamaya adını yaz. Ödemen görülünce isteğin onaylanır.\n\nIBAN: TR00 0000 0000 0000 0000 0000 00 (örnek)\nAlıcı: Sabah Koşucuları', c3);
   const msg = (from, to, body, hoursAgo, read = 1) => ins('INSERT INTO messages(from_id,to_id,body,is_read,created_at) VALUES(?,?,?,?,?)', from, to, body, read, now - hoursAgo * H);
   msg(U[1], U[0], 'Merhaba Deniz, atölyeye hoş geldin! Takıldığın bir yer olursa yazabilirsin.', 30);
@@ -119,6 +129,8 @@ function seed() {
   U.forEach((u, i) => join(u, c1, u === U[1] ? 'admin' : 'member', 48 - i * 3));
   [2, 0, 3, 6, 7].forEach((i, k) => join(U[i], c2, i === 2 ? 'admin' : 'member', 40 - k * 4));
   [4, 5, 1].forEach((i, k) => join(U[i], c3, i === 4 ? 'admin' : 'member', 30 - k * 5));
+  db.prepare('UPDATE memberships SET paid_until=? WHERE community_id=? AND user_id=?').run(now + 12 * D, c3, U[5]);
+  db.prepare('UPDATE memberships SET paid_until=? WHERE community_id=? AND user_id=?').run(now + 3 * D, c3, U[1]);
 
   const post = (c, u, title, body, cat, hoursAgo, pinned = 0) =>
     ins('INSERT INTO posts(community_id,user_id,title,body,category,pinned,created_at) VALUES(?,?,?,?,?,?,?)', c, u, title, body, cat, pinned, now - hoursAgo * H);
@@ -134,6 +146,11 @@ function seed() {
   const p4 = post(c1, U[0], 'Haftalık paylaşım: karanlık tema denemelerim', 'Bu hafta aynı ekranın açık ve koyu sürümlerini çalıştım. Koyu temada yalnızca renkleri ters çevirmek yetmiyor; yüzey katmanlarını ayrı düşünmek gerekiyor.', 'Genel', 30);
   const p5 = post(c1, U[5], 'Portfolyo sitesi için araç önerisi', 'Kod yazmadan hızlıca portfolyo yayınlamak istiyorum. Ne kullanıyorsunuz, memnun musunuz?', 'Sorular', 52);
   const p6 = post(c1, U[6], 'Kontrast oranını kontrol etmenin kolay yolu', 'Metin ile arka plan arasındaki kontrastı tasarım aşamasında ölçmek, sonradan düzeltmekten çok daha ucuz. Küçük metinlerde en az 4.5:1 hedefleyin.', 'Genel', 100);
+
+  const p7 = post(c1, U[1], 'Bir sonraki atölye konusu ne olsun?', 'Önümüzdeki ayın canlı atölyesi için oylarınızı bekliyorum. En çok oy alan konuyu işleyeceğiz.', 'Duyurular', 8);
+  db.prepare('UPDATE posts SET poll=? WHERE id=?').run(JSON.stringify(['Tipografi', 'Renk ve kontrast', 'Mobil yerleşim', 'Tasarım sistemleri']), p7);
+  [[2, 0], [3, 1], [4, 1], [5, 2], [6, 1], [7, 3]].forEach(([i, o]) => db.prepare('INSERT INTO poll_votes(post_id,user_id,option_idx) VALUES(?,?,?)').run(p7, U[i], o));
+  [0, 3, 6].forEach(i => like(U[i], 'post', p7, U[1], c1, 7));
 
   const cm1 = comment(p1, U[0], 'Merhaba! Ben Deniz, ürün tasarımcısıyım. Burada olmak harika.', 24 * 38);
   comment(p1, U[1], 'Hoş geldin Deniz!', 24 * 38 - 1, cm1);
@@ -183,6 +200,7 @@ function seed() {
     lesson(k1, '3. Stil', 'Tipografi ölçeği', 'Az sayıda yazı boyutu seç ve onlara sadık kal: 13, 15, 18, 24, 32.\n\nSatır uzunluğunu 60–75 karakter arasında tut; satır yüksekliğini gövde metninde 1.5 civarında bırak.', 6),
   ];
   const k2 = course(c1, 'Portfolyo Hazırlama', 'İşlerini hikâyeleştirerek sunmanın yolları.', '🗂️');
+  db.prepare('UPDATE courses SET min_level=3 WHERE id=?').run(k2);
   lesson(k2, 'Giriş', 'Hangi işleri seçmeli?', 'Az ama derin: üç iyi anlatılmış proje, on yüzeysel projeden iyidir.', 1);
   lesson(k2, 'Giriş', 'Vaka çalışması yazmak', 'Problem → süreç → karar → sonuç. Ekran görüntüsünden önce kararlarını anlat.', 2);
   const k3 = course(c2, 'Web\'e İlk Adım', 'HTML ve CSS ile ilk sayfanı yayınla.', '🌐');
