@@ -3,7 +3,14 @@ const { DatabaseSync } = require('node:sqlite');
 const crypto = require('crypto');
 const path = require('path');
 
-const db = new DatabaseSync(process.env.DB_PATH || path.join(__dirname, 'okul.db'));
+const fs = require('fs');
+// Veriler nerede durur: DATA_DIR verilmişse orada; yoksa kalıcı disk /var/data'ya bağlıysa orada; o da yoksa proje klasöründe
+function pickDataDir() {
+  if (process.env.DATA_DIR) { fs.mkdirSync(process.env.DATA_DIR, { recursive: true }); return process.env.DATA_DIR; }
+  try { fs.accessSync('/var/data', fs.constants.W_OK); return '/var/data'; } catch { return __dirname; }
+}
+const DATA_DIR = pickDataDir();
+const db = new DatabaseSync(process.env.DB_PATH || path.join(DATA_DIR, 'okul.db'));
 db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
 
 db.exec(`
@@ -95,6 +102,7 @@ function checkPassword(password, stored) {
 
 // ---------- Örnek veri ----------
 function seed() {
+  if (process.env.SEED_DEMO === '0') return; // gerçek yayında örnek hesap ve topluluklar oluşturulmaz
   if (db.prepare('SELECT COUNT(*) n FROM users').get().n > 0) return;
   const H = 3600e3, D = 24 * H, now = Date.now();
   const ins = (sql, ...p) => Number(db.prepare(sql).run(...p).lastInsertRowid);
@@ -238,4 +246,4 @@ function seed() {
 }
 seed();
 
-module.exports = { db, hashPassword, checkPassword, COLORS, DEFAULT_CATEGORIES };
+module.exports = { db, hashPassword, checkPassword, COLORS, DEFAULT_CATEGORIES, DATA_DIR };

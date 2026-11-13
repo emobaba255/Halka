@@ -18,14 +18,30 @@ Ardından tarayıcıda `http://localhost:3000` adresini aç. İlk çalıştırma
 | Değişken | Ne işe yarar |
 | --- | --- |
 | `PORT` | Sunucunun dinlediği port (varsayılan 3000) |
-| `DB_PATH` | SQLite veritabanı dosyasının yolu (varsayılan `okul.db`) |
-| `UPLOAD_DIR` | Yüklenen görsellerin klasörü (varsayılan `uploads/`) |
+| `DATA_DIR` | Veritabanı ve yüklenen dosyaların duracağı klasör. Verilmezse ve `/var/data` yazılabilir bir diskse orası, yoksa proje klasörü kullanılır |
+| `DB_PATH`, `UPLOAD_DIR` | Veritabanı dosyasını ya da yükleme klasörünü ayrı ayrı belirlemek için |
+| `SEED_DEMO` | `0` yapılırsa örnek hesaplar ve topluluklar oluşturulmaz. Gerçek yayında `0` olmalı: örnek hesapların şifresi herkesçe bilinir |
 | `BASE_URL` | Sitenin adresi; şifre sıfırlama bağlantılarında kullanılır |
 | `SMTP_URL` | E-posta sunucusu, örn. `smtps://kullanici:sifre@smtp.ornek.com`. Tanımlı değilse e-postalar gönderilmez, sunucu günlüğüne yazılır |
-| `MAX_VIDEO_MB` | Derslere yüklenen bir videonun en büyük boyutu (varsayılan 2048) |
 | `MAIL_FROM` | Gönderen adresi, örn. `Okul <bilgi@ornek.com>` |
+| `MAX_VIDEO_MB` | Derslere yüklenen bir videonun en büyük boyutu (varsayılan 2048) |
 
-Yayına alırken veritabanı dosyası ile `uploads/` klasörünün kalıcı bir diskte durduğundan emin ol.
+## Kalıcı veri (Render)
+
+Ücretsiz planda disk kalıcı değildir: her yeniden başlatmada veritabanı ve yüklenen dosyalar sıfırlanır. Kalıcı olması için:
+
+1. Hizmeti ücretli bir plana geçir.
+2. Hizmetin **Disks** bölümünden bir disk ekle; **Mount Path** olarak `/var/data` yaz.
+3. **Environment** bölümüne `SEED_DEMO=0` ekle (örnek hesaplar oluşmasın).
+
+Uygulama `/var/data` klasörünü görünce veritabanını ve yüklemeleri kendiliğinden oraya yazar; başka ayar gerekmez.
+
+## Güvenlik notları
+
+- Oturum çerezi `HttpOnly` ve `SameSite=Lax`; https üzerinde `Secure`. Oturumlar 30 gün geçerlidir.
+- İçerik güvenlik politikası (CSP) yalnızca sitenin kendi betiklerine, Google Fonts'a ve YouTube gömmelerine izin verir.
+- Giriş, kayıt, mesaj ve genel yazma isteklerinde istek sınırı vardır.
+- Yüklenen görsellerin türü dosya içeriğinden doğrulanır; belgeler tarayıcıda açılmaz, indirilir.
 
 ## Yönetim paneli
 

@@ -1,10 +1,12 @@
 /* Okul — tek sayfa arayüzü (bağımlılıksız) */
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const S = { user: null, communities: [], unread: 0, unreadMessages: 0, thread: null, live: null, menu: null, notes: null, feed: { category: '', sort: 'new', q: '' }, calMonth: null, replyTo: null };
+const S = { user: null, communities: [], unread: 0, unreadMessages: 0, thread: null, live: null, menu: null, notes: null, feed: { category: '', sort: 'new', q: '', limit: 20, slug: '' }, demo: false, calMonth: null, replyTo: null };
 
 async function api(path, method = 'GET', body) {
-  const res = await fetch('/api' + path, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+  let res;
+  try { res = await fetch('/api' + path, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined }); }
+  catch { throw new Error('Bağlantı kurulamadı. İnternetini kontrol edip tekrar dene.'); }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw Object.assign(new Error(data.error || 'Bir şeyler ters gitti'), { status: res.status });
   return data;
@@ -77,15 +79,15 @@ const ic = name => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICO
 // Logo: mezuniyet kepi takmış "O"
 const logoMark = (cls = '') => `<svg class="mark ${cls}" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2f74ee"/><stop offset="1" stop-color="#1848b0"/></linearGradient></defs><rect width="48" height="48" rx="12" fill="url(#lg)"/><circle cx="24" cy="29" r="9" fill="none" stroke="#fff" stroke-width="5"/><path d="M24 8.5 41 15.5 24 22.5 7 15.5z" fill="#f2c14e" stroke="#2260d4" stroke-width="2" stroke-linejoin="round"/><path d="M36.5 18v6.5" stroke="#f2c14e" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg>`;
 // Tarayıcının ham onay kutuları yerine kendi penceremiz. Onayda true (ya da yazılan metin), vazgeçmede false (ya da null) döner.
-function ask({ title, text = '', ok = 'Evet', cancel = 'Vazgeç', danger = false, input = '' }) {
+function ask({ title, text = '', ok = 'Evet', cancel = 'Vazgeç', danger = false, input = '', password = false }) {
   return new Promise(done => {
     const d = document.createElement('dialog');
     d.className = 'modal';
     d.innerHTML = `<form method="dialog" class="stack"><h3>${esc(title)}</h3>${text ? `<p class="muted">${esc(text)}</p>` : ''}
-      ${input ? `<textarea maxlength="300" rows="3" placeholder="${esc(input)}" aria-label="${esc(input)}"></textarea>` : ''}
+      ${input ? (password ? `<input type="password" placeholder="${esc(input)}" aria-label="${esc(input)}" autocomplete="current-password">` : `<textarea maxlength="300" rows="3" placeholder="${esc(input)}" aria-label="${esc(input)}"></textarea>`) : ''}
       <div class="row" style="justify-content:flex-end"><button class="btn" value="no">${esc(cancel)}</button><button class="btn ${danger ? 'dangerfill' : 'primary'}" value="ok" data-ok>${esc(ok)}</button></div></form>`;
     d.addEventListener('close', () => {
-      const yes = d.returnValue === 'ok', v = input ? (yes ? d.querySelector('textarea').value.trim() : null) : yes;
+      const yes = d.returnValue === 'ok', v = input ? (yes ? d.querySelector('textarea, input').value.trim() : null) : yes;
       d.remove(); done(v);
     });
     document.body.append(d);
@@ -247,7 +249,7 @@ function renderNotes() {
 // ---------- Yönlendirici ----------
 async function refreshMe() {
   const me = await api('/me');
-  Object.assign(S, { user: me.user, communities: me.communities, unread: me.unread, unreadMessages: me.unreadMessages || 0 });
+  Object.assign(S, { user: me.user, communities: me.communities, unread: me.unread, unreadMessages: me.unreadMessages || 0, demo: !!me.demo });
 }
 let routeSeq = 0, lastHash = null;
 async function route() {
@@ -372,11 +374,12 @@ function viewAuth(mode) {
       ${reg ? '<div><label for="f-name">Ad Soyad</label><input id="f-name" type="text" name="name" required minlength="2" maxlength="60" autocomplete="name"></div>' : ''}
       <div><label for="f-email">E-posta</label><input id="f-email" type="email" name="email" required autocomplete="email"></div>
       <div><label for="f-pass">Şifre</label><input id="f-pass" type="password" name="password" required minlength="${reg ? 8 : 1}" autocomplete="${reg ? 'new-password' : 'current-password'}"></div>
+      <label class="check small"><input type="checkbox" data-showpw> Şifreyi göster</label>
       <button class="btn primary block">${reg ? 'Kayıt ol' : 'Giriş yap'}</button>
     </form>
     <p class="small muted">${reg ? 'Zaten hesabın var mı? <a href="#/login"><b>Giriş yap</b></a>' : 'Hesabın yok mu? <a href="#/register"><b>Kayıt ol</b></a>'}</p>
     ${reg ? '' : '<p class="small"><a href="#/forgot" style="color:var(--accent);font-weight:600">Şifremi unuttum</a></p>'}
-    ${reg ? '' : '<p class="small muted">Denemek için: <b>demo@okul.app</b> / <b>demo1234</b> <button class="linkbtn" data-act="demo" style="color:var(--accent)">Demo ile gir →</button></p>'}
+    ${reg || !S.demo ? '' : '<p class="small muted">Denemek için: <b>demo@okul.app</b> / <b>demo1234</b> <button class="linkbtn" data-act="demo" style="color:var(--accent)">Demo ile gir →</button></p>'}
   </div></div>`;
 }
 
@@ -462,6 +465,7 @@ function viewSettings() {
       <div><label for="pw-again">Yeni şifre (tekrar)</label><input id="pw-again" type="password" name="again" required minlength="8" autocomplete="new-password"></div>
       <div><button class="btn primary">Şifreyi güncelle</button></div></form>
     <div class="card row spread" style="flex-wrap:wrap"><div><h3>Hesap</h3><p class="small muted">${esc(u.email)}</p></div><button class="btn" data-act="logout">${ic('logout')} Çıkış yap</button></div>
+    <div class="card stack" style="border-color:var(--danger)"><h3>Hesabı sil</h3><p class="small muted">Profil bilgilerin, mesajların ve üyeliklerin kalıcı olarak silinir. Gönderi ve yorumların “Silinmiş kullanıcı” adıyla kalır. Bu işlem geri alınamaz.</p><div><button class="btn danger" data-act="deleteAccount">Hesabımı sil</button></div></div>
   </div></div>`;
 }
 
@@ -547,6 +551,7 @@ function viewReset(token) {
     <form class="stack" data-form="reset" data-token="${esc(token)}">
       <div><label for="rs-pass">Yeni şifre</label><input id="rs-pass" type="password" name="password" required minlength="8" autocomplete="new-password"></div>
       <div><label for="rs-again">Yeni şifre (tekrar)</label><input id="rs-again" type="password" name="again" required minlength="8" autocomplete="new-password"></div>
+      <label class="check small"><input type="checkbox" data-showpw> Şifreyi göster</label>
       <button class="btn primary block">Şifreyi kaydet</button></form></div></div>`;
 }
 
@@ -609,14 +614,16 @@ async function viewCommunity(slug, tab = '', x, y) {
   else main = tabAbout();
   const cur = tab === 'p' ? '' : tab, c = C.community, base = `#/c/${esc(c.slug)}`;
   return `
-    ${communityHeader()}
+    ${communityHeader(tab === 'p' || tab === 'live' || tab === 'admin' || (tab === 'classroom' && !!x))}
     <nav class="tabs" aria-label="Topluluk bölümleri"><div class="wrap">
       ${(isMember ? tabsFor() : TABS.slice(-1)).map(([k, l]) => `<a class="${k === cur ? 'on' : ''}" href="${base}${k ? '/' + k : ''}">${l}</a>`).join('')}
     </div></nav>
     <div class="wrap layout ${full ? 'full' : ''}"><div class="stack">${main}</div>${full ? '' : sidebar()}</div>`;
 }
-function communityHeader() {
+function communityHeader(slim) {
   const c = C.community;
+  // Gönderi, ders, panel gibi alt sayfalarda yer kaplamayan ince başlık
+  if (slim) return `<section class="chead slim"><div class="wrap row">${cicon(c.emoji)}<a class="grow" href="#/c/${esc(c.slug)}"><b>${esc(c.name)}</b></a>${c.live ? `<a class="tag live-tag" href="#/c/${esc(c.slug)}/live">● CANLI</a>` : ''}</div></section>`;
   return `<section class="chead"><div class="chead-cover" ${c.cover ? `style="background-image:url('${esc(c.cover)}')"` : ''}></div>
     <div class="wrap chead-row">${cicon(c.emoji, 'xl')}
       <div class="grow chead-text"><h1>${esc(c.name)}</h1>${c.tagline ? `<p class="muted">${esc(c.tagline)}</p>` : ''}
@@ -641,9 +648,11 @@ function sidebar() {
 
 // ---------- Akış ----------
 async function tabFeed() {
-  const c = C.community, f = S.feed;
-  const qs = new URLSearchParams({ sort: f.sort }); if (f.category) qs.set('category', f.category); if (f.q) qs.set('q', f.q);
-  const { posts } = await api(`/communities/${encodeURIComponent(c.slug)}/posts?${qs}`);
+  const c = C.community;
+  if (S.feed.slug !== c.slug) S.feed = { category: '', sort: 'new', q: '', limit: 20, slug: c.slug }; // başka topluluğun süzgeci taşınmasın
+  const f = S.feed;
+  const qs = new URLSearchParams({ sort: f.sort, limit: f.limit }); if (f.category) qs.set('category', f.category); if (f.q) qs.set('q', f.q);
+  const { posts, more } = await api(`/communities/${encodeURIComponent(c.slug)}/posts?${qs}`);
   const canPost = c.post_role !== 'admin' || C.role === 'admin';
   let hideStart = false;
   try { hideStart = localStorage.getItem('start:' + c.slug) === '1'; } catch { /* depolama kapalıysa kart görünür kalır */ }
@@ -679,7 +688,8 @@ async function tabFeed() {
         <p class="muted clamp body-text">${esc(p.body)}</p>
         ${p.image ? `<img class="post-img thumb" src="${esc(p.image)}" alt="" loading="lazy">` : ''}
         <div class="row" style="margin-top:12px;flex-wrap:wrap">${likeBtn('post', p)}<span class="small muted">${ic('comment')} ${p.comments} yorum</span>${p.poll ? '<span class="tag">' + ic('chart') + ' Anket</span>' : ''}${p.file ? '<span class="tag">' + ic('clip') + ' Dosya</span>' : ''}</div>
-      </article>`).join('') || '<div class="card empty">Burada henüz gönderi yok.</div>'}`;
+      </article>`).join('') || '<div class="card empty">Burada henüz gönderi yok.</div>'}
+    ${more ? '<div style="text-align:center"><button class="btn" data-act="feedMore">Daha fazla göster</button></div>' : ''}`;
 }
 const ytId = s => /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:\S*&)?v=|embed\/|shorts\/|live\/))([\w-]{11})/.exec(String(s || ''))?.[1] || '';
 const ytFrame = (id, title, extra = '') => `<div class="video"><iframe src="https://www.youtube-nocookie.com/embed/${esc(id)}${extra}" title="${esc(title)}" allow="accelerometer; autoplay; encrypted-media; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>`;
@@ -760,7 +770,7 @@ async function tabCourse(courseId, lessonId) {
   const cur = lessons.find(l => String(l.id) === String(lessonId)) || lessons.find(l => !l.done) || lessons[0];
   const modules = [...new Set(lessons.map(l => l.module))];
   const done = lessons.filter(l => l.done).length, pct = lessons.length ? Math.round(done * 100 / lessons.length) : 0;
-  const idx = cur ? lessons.indexOf(cur) : -1, next = lessons[idx + 1];
+  const idx = cur ? lessons.indexOf(cur) : -1, next = lessons[idx + 1], prev = idx > 0 ? lessons[idx - 1] : null;
   const href = l => `#/c/${esc(slug)}/classroom/${course.id}/${l.id}`;
   return `<a class="small muted" href="#/c/${esc(slug)}/classroom">← Tüm kurslar</a>
   <div class="course">
@@ -811,7 +821,7 @@ async function tabCourse(courseId, lessonId) {
           <div class="row" style="flex-wrap:wrap"><button class="btn primary">Kaydet</button><button type="button" class="btn danger" data-act="delLesson" data-id="${cur.id}" data-course="${course.id}">Dersi sil</button></div></form></details>` : ''}
       <div class="row" style="flex-wrap:wrap;border-top:1px solid var(--line);padding-top:14px">
         <button class="btn ${cur.done ? '' : 'primary'}" data-act="complete" data-id="${cur.id}" data-next="${!cur.done && next ? href(next) : ''}">${cur.done ? '✓ Tamamlandı (geri al)' : 'Tamamlandı olarak işaretle'}</button>
-        <span class="grow"></span>${next ? `<a class="btn" href="${href(next)}">Sonraki ders →</a>` : ''}
+        <span class="grow"></span>${prev ? `<a class="btn" href="${href(prev)}">← Önceki</a>` : ''}${next ? `<a class="btn" href="${href(next)}">Sonraki →</a>` : ''}
       </div>` : '<div class="empty">Bu kursta henüz ders yok.</div>'}
     </div>
   </div>`;
@@ -1103,12 +1113,18 @@ const acts = {
     setTheme(next); renderTop(); toast('Tema: ' + THEMES.find(x => x[0] === next)[2]);
     const r = $(`input[name=theme][value=${next}]`); if (r) r.checked = true;
   },
+  async deleteAccount() {
+    const pw = await ask({ title: 'Hesabın kalıcı olarak silinsin mi?', text: 'Onaylamak için şifreni yaz. Bu işlem geri alınamaz.', input: 'Şifren', password: true, ok: 'Hesabımı sil', danger: true });
+    if (pw === null) return;
+    await api('/me', 'DELETE', { password: pw }); await refreshMe(); toast('Hesabın silindi'); go('#/');
+  },
   async cancelRequest() { await api(slugPath() + '/join', 'DELETE'); toast('İstek geri çekildi'); route(); },
   async decide(el) { await api(`${slugPath()}/requests/${el.dataset.id}`, 'POST', { approve: !!el.dataset.ok }); toast(el.dataset.ok ? 'Üye onaylandı' : 'İstek reddedildi'); route(); },
   async kick(el) { if (!await ask({ title: `${el.dataset.name} topluluktan çıkarılsın mı?`, danger: true })) return; await api(`${slugPath()}/members/${el.dataset.id}`, 'DELETE'); route(); },
   async leave() { if (!await ask({ title: 'Topluluktan ayrılmak istediğine emin misin?', danger: true })) return; await api(slugPath() + '/leave', 'POST'); await refreshMe(); go('#/'); },
   open(el, ev) { if (!ev.target.closest('a,button')) location.hash = el.dataset.href; },
-  feedCat(el) { S.feed.category = el.dataset.v; route(); },
+  feedCat(el) { S.feed.category = el.dataset.v; S.feed.limit = 20; route(); },
+  feedMore() { S.feed.limit += 20; route(); },
   async like(el) {
     const r = await api('/like', 'POST', { type: el.dataset.type, id: Number(el.dataset.id) });
     el.classList.toggle('on', r.liked); el.setAttribute('aria-pressed', r.liked); $('span', el).textContent = r.likes;
@@ -1157,7 +1173,7 @@ const forms = {
     const poll = String(d.poll || '').split('\n').map(s => s.trim()).filter(Boolean);
     const r = await api(slugPath() + '/posts', 'POST', { title: d.title, body: d.body, category: d.category, image, file: f.url, fileName: f.name, poll }); go(`#/c/${C.community.slug}/p/${r.id}`);
   },
-  feedSearch(d) { S.feed.q = d.q.trim(); route(); },
+  feedSearch(d) { S.feed.q = d.q.trim(); S.feed.limit = 20; route(); },
   async comment(d, form) { await api(`/posts/${form.dataset.post}/comments`, 'POST', { body: d.body, parentId: S.replyTo }); route(); },
   async course(d) { const r = await api(slugPath() + '/courses', 'POST', d); go(`#/c/${C.community.slug}/classroom/${r.id}`); },
   async lesson(d, form) {
@@ -1237,8 +1253,9 @@ document.addEventListener('input', ev => {
   }
 });
 document.addEventListener('change', ev => {
+  if (ev.target.dataset?.showpw !== undefined) ev.target.form.querySelectorAll('input[name=password], input[name=again]').forEach(i => { i.type = ev.target.checked ? 'text' : 'password'; });
   if (ev.target.name === 'theme') { setTheme(ev.target.value); toast('Tema: ' + THEMES.find(x => x[0] === ev.target.value)[2]); }
-  if (ev.target.dataset.change === 'feedSort') { S.feed.sort = ev.target.value; route(); }
+  if (ev.target.dataset.change === 'feedSort') { S.feed.sort = ev.target.value; S.feed.limit = 20; route(); }
 });
 document.addEventListener('input', ev => {
   if (ev.target.dataset.input !== 'memberFilter') return;

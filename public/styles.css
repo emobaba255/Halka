@@ -422,3 +422,8 @@ input[type=range] { accent-color: var(--accent); padding: 0; }
 .upbar .bar { height: 9px; }
 /* Telefonda dersin içeriği, ders listesinden önce gelsin */
 @media (max-width: 760px) { .course > :nth-child(2) { order: -1; } }
+
+/* İnce topluluk başlığı (alt sayfalar) */
+.chead.slim { border-bottom: 0; }
+.chead.slim .row { padding-top: 10px; padding-bottom: 10px; }
+.check.small { font-size: 13px; color: var(--muted); }

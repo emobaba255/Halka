@@ -2,10 +2,27 @@ const express = require('express');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
-const { db, hashPassword, checkPassword, COLORS, DEFAULT_CATEGORIES } = require('./db');
+const { db, hashPassword, checkPassword, COLORS, DEFAULT_CATEGORIES, DATA_DIR } = require('./db');
 
 const app = express();
 app.set('trust proxy', 1); // barındırma hizmetinin vekil sunucusu arkasında gerçek IP ve https bilgisini al
+app.disable('x-powered-by');
+app.use(require('compression')()); // metin dosyalarını sıkıştırarak gönder (mobilde belirgin hız kazancı)
+// Güvenlik başlıkları: sayfa başka sitelere gömülemez, yalnızca izin verilen kaynaklardan içerik yüklenir
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Content-Security-Policy', [
+    "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: blob:", "media-src 'self' blob:", "frame-src https://www.youtube-nocookie.com", "connect-src 'self'",
+    "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'",
+  ].join('; '));
+  if (req.secure) res.setHeader('Strict-Transport-Security', 'max-age=15552000');
+  next();
+});
+app.get('/healthz', (req, res) => res.type('text').send('ok'));
 app.use('/api/upload', express.json({ limit: '6mb' }));
 app.use('/api/upload-file', express.json({ limit: '12mb' }));
 app.use(express.json({ limit: '200kb' }));
@@ -64,7 +81,7 @@ function newPassword(v) {
 }
 
 // Yüklenen görseller
-const UPLOADS = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
+const UPLOADS = process.env.UPLOAD_DIR || path.join(DATA_DIR, 'uploads');
 fs.mkdirSync(UPLOADS, { recursive: true });
 const removeUpload = url => { if (typeof url === 'string' && UPL_RE.test(url)) fs.unlink(path.join(UPLOADS, path.basename(url)), () => {}); };
 
@@ -108,9 +125,12 @@ function notify(userId, actorId, type, postId, communityId) {
 }
 
 // ---------- Oturum ----------
+const SESSION_MS = 30 * 864e5; // oturumlar 30 gün geçerli
+const sweepSessions = () => { run('DELETE FROM sessions WHERE created_at<?', now() - SESSION_MS); run('DELETE FROM resets WHERE expires_at<?', now()); };
+sweepSessions(); setInterval(sweepSessions, 6 * 3600e3).unref();
 app.use((req, res, next) => {
   const m = /(?:^|;\s*)sid=([a-f0-9]{48})/.exec(req.headers.cookie || '');
-  req.user = m ? one('SELECT u.id,u.name,u.email,u.bio,u.color,u.avatar,u.title,u.link FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=?', m[1]) || null : null;
+  req.user = m ? one('SELECT u.id,u.name,u.email,u.bio,u.color,u.avatar,u.title,u.link FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND s.created_at>?', m[1], now() - SESSION_MS) || null : null;
   req.sid = m ? m[1] : null;
   next();
 });
@@ -120,6 +140,23 @@ function startSession(res, userId) {
   res.setHeader('Set-Cookie', `sid=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${60 * 60 * 24 * 30}${res.req.secure ? '; Secure' : ''}`);
 }
 const auth = (req, res, next) => req.user ? next() : res.status(401).json({ error: 'Önce giriş yapmalısın' });
+
+// İstek sınırı: aynı kullanıcı (ya da giriş yapmamışsa aynı IP) belirli sürede en çok `max` istek yapabilir
+function limiter(max, windowMs, message) {
+  const hits = new Map();
+  setInterval(() => { const t = now(); for (const [k, h] of hits) if (h.until < t) hits.delete(k); }, 60e3).unref();
+  return (req, res, next) => {
+    const key = req.user ? 'u' + req.user.id : 'ip' + req.ip, t = now(), h = hits.get(key);
+    if (!h || h.until < t) hits.set(key, { n: 1, until: t + windowMs });
+    else if (++h.n > max) return res.status(429).json({ error: message });
+    next();
+  };
+}
+const writeLimit = limiter(600, 5 * 60e3, 'Çok hızlı işlem yapıyorsun. Birkaç dakika sonra tekrar dene.');
+const registerLimit = limiter(30, 60 * 60e3, 'Bu ağdan çok fazla hesap açıldı. Daha sonra tekrar dene.');
+const messageLimit = limiter(40, 60e3, 'Çok hızlı mesaj gönderiyorsun. Biraz bekle.');
+// Veri değiştiren tüm isteklere genel sınır (video parçaları hariç; onların kendi denetimi var)
+app.use('/api', (req, res, next) => (req.method === 'GET' || req.path.startsWith('/video/') ? next() : writeLimit(req, res, next)));
 
 function loadCommunity(req, res, next) {
   const c = one('SELECT * FROM communities WHERE slug=?', req.params.slug);
@@ -141,7 +178,7 @@ function membership(userId, communityId) {
 const roleIn = (userId, communityId) => membership(userId, communityId).role;
 
 // ---------- Kimlik ----------
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', registerLimit, (req, res) => {
   const name = text(req.body.name, 'Ad', 60, 2);
   const email = text(req.body.email, 'E-posta', 120, 5).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail(400, 'Geçerli bir e-posta gir');
@@ -166,13 +203,15 @@ app.post('/api/auth/logout', (req, res) => {
   res.setHeader('Set-Cookie', 'sid=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');
   res.json({ ok: true });
 });
+const hasDemo = () => !!one("SELECT 1 FROM users WHERE email='demo@okul.app'");
 app.get('/api/me', (req, res) => {
-  if (!req.user) return res.json({ user: null, communities: [], unread: 0 });
+  if (!req.user) return res.json({ user: null, communities: [], unread: 0, demo: hasDemo() });
   res.json({
     user: req.user,
     communities: all('SELECT c.slug,c.name,c.emoji,c.color FROM memberships m JOIN communities c ON c.id=m.community_id WHERE m.user_id=? ORDER BY m.joined_at', req.user.id),
     unread: one('SELECT COUNT(*) n FROM notifications WHERE user_id=? AND is_read=0', req.user.id).n,
     unreadMessages: one('SELECT COUNT(*) n FROM messages WHERE to_id=? AND is_read=0', req.user.id).n,
+    demo: hasDemo(),
   });
 });
 app.put('/api/me', auth, (req, res) => {
@@ -190,6 +229,21 @@ app.put('/api/me/avatar', auth, (req, res) => {
   const avatar = img(req.body.avatar);
   if (req.user.avatar && req.user.avatar !== avatar) removeUpload(req.user.avatar);
   run('UPDATE users SET avatar=? WHERE id=?', avatar, req.user.id);
+  res.json({ ok: true });
+});
+// Hesabı silme: kişisel bilgiler ve oturumlar silinir; gönderi ve yorumlar "Silinmiş kullanıcı" adıyla kalır
+app.delete('/api/me', auth, (req, res) => {
+  const u = one('SELECT pass FROM users WHERE id=?', req.user.id);
+  if (!checkPassword(String(req.body?.password || ''), u.pass)) fail(400, 'Şifre hatalı');
+  if (one('SELECT 1 FROM communities WHERE owner_id=?', req.user.id)) fail(400, 'Önce kurduğun toplulukları silmelisin (Yönetim paneli → Ayarlar → Tehlikeli bölge)');
+  const id = req.user.id;
+  removeUpload(req.user.avatar);
+  for (const t of ['sessions', 'memberships', 'join_requests', 'resets', 'poll_votes', 'progress', 'live_chat']) run(`DELETE FROM ${t} WHERE user_id=?`, id);
+  run('DELETE FROM likes WHERE user_id=?', id);
+  run('DELETE FROM notifications WHERE user_id=? OR actor_id=?', id, id);
+  run('DELETE FROM messages WHERE from_id=? OR to_id=?', id, id);
+  run("UPDATE users SET name='Silinmiş kullanıcı', email=?, pass=?, bio='', title='', link='', avatar='' WHERE id=?", `silindi-${id}-${crypto.randomBytes(6).toString('hex')}@silindi.invalid`, hashPassword(crypto.randomBytes(24).toString('hex')), id);
+  res.setHeader('Set-Cookie', 'sid=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');
   res.json({ ok: true });
 });
 app.put('/api/me/password', auth, (req, res) => {
@@ -232,6 +286,10 @@ app.post('/api/upload', auth, (req, res) => {
   if (!m) fail(400, 'Yalnızca PNG, JPEG, WebP veya GIF yüklenebilir');
   const buf = Buffer.from(m[2], 'base64');
   if (buf.length > 4 * 1024 * 1024) fail(400, 'Görsel en fazla 4 MB olabilir');
+  // Dosyanın ilk baytları bildirilen türle uyuşmalı (uzantısı değiştirilmiş dosyalar reddedilir)
+  const head = buf.subarray(0, 12).toString('latin1');
+  const real = head.startsWith('\x89PNG') ? 'png' : head.startsWith('\xff\xd8\xff') ? 'jpeg' : head.startsWith('GIF8') ? 'gif' : head.startsWith('RIFF') && head.slice(8, 12) === 'WEBP' ? 'webp' : '';
+  if (real !== m[1]) fail(400, 'Dosya geçerli bir görsel değil');
   const name = crypto.randomBytes(16).toString('hex') + '.' + (m[1] === 'jpeg' ? 'jpg' : m[1]);
   fs.writeFileSync(path.join(UPLOADS, name), buf);
   res.json({ url: '/uploads/' + name });
@@ -265,7 +323,7 @@ app.get('/api/messages/:userId', auth, (req, res) => {
     ORDER BY id DESC LIMIT 200`, req.user.id, other.id, other.id, req.user.id).reverse();
   res.json({ user: other, messages });
 });
-app.post('/api/messages/:userId', auth, (req, res) => {
+app.post('/api/messages/:userId', auth, messageLimit, (req, res) => {
   const other = one('SELECT id FROM users WHERE id=?', Number(req.params.userId));
   if (!other) fail(404, 'Kullanıcı bulunamadı');
   if (!canMessage(req.user.id, other.id)) fail(403, 'Yalnızca ortak topluluğun olan kişilere mesaj gönderebilirsin');
@@ -427,9 +485,10 @@ app.get('/api/communities/:slug/posts', auth, loadCommunity, member, (req, res) 
   if (req.query.q) { where.push('(p.title LIKE ? OR p.body LIKE ?)'); const q = `%${String(req.query.q)}%`; params.push(q, q); }
   const order = req.query.sort === 'top' ? 'likes DESC, p.created_at DESC' : 'p.created_at DESC';
   const pts = pointsMap(req.c.id);
-  const posts = all(`${POST_SELECT} WHERE ${where.join(' AND ')} ORDER BY p.pinned DESC, ${order} LIMIT 100`, ...params)
-    .map(p => ({ ...p, poll: !!p.poll, author_level: levelOf(pts.get(p.user_id) || 0) }));
-  res.json({ posts });
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 300);
+  const rows = all(`${POST_SELECT} WHERE ${where.join(' AND ')} ORDER BY p.pinned DESC, ${order} LIMIT ?`, ...params, limit + 1);
+  const posts = rows.slice(0, limit).map(p => ({ ...p, poll: !!p.poll, author_level: levelOf(pts.get(p.user_id) || 0) }));
+  res.json({ posts, more: rows.length > limit });
 });
 app.post('/api/communities/:slug/posts', auth, loadCommunity, member, (req, res) => {
   const cats = JSON.parse(req.c.categories);
@@ -851,5 +910,6 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({ error: err.status ? err.message : 'Sunucu hatası' });
 });
 
+process.on('unhandledRejection', err => console.error('Yakalanmamış hata:', err));
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Okul http://localhost:${PORT} adresinde çalışıyor`));
