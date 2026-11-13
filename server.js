@@ -29,7 +29,9 @@ const optText = (v, label, max) => text(v ?? '', label, max, 0);
 
 const IMG_RE = /^\/uploads\/[a-f0-9]{32}\.(png|jpg|webp|gif)$/;
 const img = v => (typeof v === 'string' && IMG_RE.test(v) ? v : '');
-const UPL_RE = /^\/uploads\/[a-f0-9]{32}\.(png|jpg|webp|gif|pdf|zip|docx|xlsx|pptx|txt|csv)$/;
+const UPL_RE = /^\/uploads\/[a-f0-9]{32}\.(png|jpg|webp|gif|pdf|zip|docx|xlsx|pptx|txt|csv|mp4|webm|mov)$/;
+const VID_RE = /^\/uploads\/[a-f0-9]{32}\.(mp4|webm|mov)$/;
+const vidUrl = v => (typeof v === 'string' && VID_RE.test(v) ? v : '');
 const FILE_RE = /^\/uploads\/[a-f0-9]{32}\.(pdf|zip|docx|xlsx|pptx|txt|csv)$/;
 const fileUrl = v => (typeof v === 'string' && FILE_RE.test(v) ? v : '');
 const ytId = s => /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:\S*&)?v=|embed\/|shorts\/|live\/))([\w-]{11})/.exec(String(s || ''))?.[1] || '';
@@ -236,7 +238,7 @@ app.post('/api/upload', auth, (req, res) => {
 });
 app.use('/uploads', express.static(UPLOADS, { maxAge: '30d', setHeaders: (res, p) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  if (!/\.(png|jpg|webp|gif)$/.test(p)) res.setHeader('Content-Disposition', 'attachment'); // belgeler tarayıcıda açılmaz, indirilir
+  if (!/\.(png|jpg|webp|gif|mp4|webm|mov)$/.test(p)) res.setHeader('Content-Disposition', 'attachment'); // belgeler tarayıcıda açılmaz, indirilir
 } }));
 
 // ---------- Özel mesajlar ----------
@@ -352,7 +354,7 @@ app.put('/api/communities/:slug', auth, loadCommunity, admin, (req, res) => {
 app.delete('/api/communities/:slug', auth, loadCommunity, (req, res) => {
   if (req.user.id !== req.c.owner_id) fail(403, 'Topluluğu yalnızca kurucusu silebilir');
   for (const p of all("SELECT image, file FROM posts WHERE community_id=? AND (image<>'' OR file<>'')", req.c.id)) { removeUpload(p.image); removeUpload(p.file); }
-  for (const l of all("SELECT l.file FROM lessons l JOIN courses k ON k.id=l.course_id WHERE k.community_id=? AND l.file<>''", req.c.id)) removeUpload(l.file);
+  for (const l of all('SELECT l.file, l.image, l.video_file FROM lessons l JOIN courses k ON k.id=l.course_id WHERE k.community_id=?', req.c.id)) { removeUpload(l.file); removeUpload(l.image); removeUpload(l.video_file); }
   removeUpload(req.c.cover); removeUpload(req.c.emoji);
   run('DELETE FROM likes WHERE community_id=?', req.c.id);
   run('DELETE FROM notifications WHERE community_id=?', req.c.id);
@@ -558,7 +560,7 @@ app.get('/api/courses/:id', auth, loadCourse, member, (req, res) => {
     fail(403, `Bu kurs Seviye ${req.course.min_level} ve üzeri üyelere açık. Gönderi ve yorumlarına beğeni topladıkça seviyen yükselir.`);
   res.json({
     course: { id, title, description, emoji, min_level },
-    lessons: all(`SELECT l.id,l.module,l.title,l.content,l.video,l.file,l.file_name,
+    lessons: all(`SELECT l.id,l.module,l.title,l.content,l.video,l.file,l.file_name,l.image,l.video_file,
       EXISTS(SELECT 1 FROM progress p WHERE p.lesson_id=l.id AND p.user_id=?) done
       FROM lessons l WHERE l.course_id=? ORDER BY l.position, l.id`, req.user.id, id),
   });
@@ -581,15 +583,21 @@ function loadLesson(req, res, next) {
 app.put('/api/lessons/:id', auth, loadLesson, admin, (req, res) => {
   const url = optText(req.body.video, 'Video bağlantısı', 200), vid = url ? ytId(url) : '';
   if (url && !vid) fail(400, 'Yalnızca YouTube bağlantıları destekleniyor');
-  run('UPDATE lessons SET module=?, title=?, content=?, video=? WHERE id=?', text(req.body.module, 'Bölüm', 60), text(req.body.title, 'Ders adı', 100, 2), optText(req.body.content, 'İçerik', 10000), vid, req.lesson.id);
+  // Görsel ve video yalnızca gönderildiyse değişir ('' kaldırır)
+  const image = req.body.image === undefined ? req.lesson.image : img(req.body.image);
+  const videoFile = req.body.videoFile === undefined ? req.lesson.video_file : vidUrl(req.body.videoFile);
+  if (image !== req.lesson.image) removeUpload(req.lesson.image);
+  if (videoFile !== req.lesson.video_file) removeUpload(req.lesson.video_file);
+  run('UPDATE lessons SET module=?, title=?, content=?, video=?, image=?, video_file=? WHERE id=?', text(req.body.module, 'Bölüm', 60), text(req.body.title, 'Ders adı', 100, 2), optText(req.body.content, 'İçerik', 10000), vid, image, videoFile, req.lesson.id);
   res.json({ ok: true });
 });
 app.delete('/api/lessons/:id', auth, loadLesson, admin, (req, res) => {
-  removeUpload(req.lesson.file);
+  removeUpload(req.lesson.file); removeUpload(req.lesson.image); removeUpload(req.lesson.video_file);
   run('DELETE FROM lessons WHERE id=?', req.lesson.id);
   res.json({ ok: true });
 });
 app.delete('/api/courses/:id', auth, loadCourse, admin, (req, res) => {
+  for (const l of all('SELECT file, image, video_file FROM lessons WHERE course_id=?', req.course.id)) { removeUpload(l.file); removeUpload(l.image); removeUpload(l.video_file); }
   run('DELETE FROM courses WHERE id=?', req.course.id);
   res.json({ ok: true });
 });
@@ -599,9 +607,9 @@ app.post('/api/courses/:id/lessons', auth, loadCourse, admin, (req, res) => {
   if (url && !vid) fail(400, 'Yalnızca YouTube bağlantıları destekleniyor');
   const pos = one('SELECT COALESCE(MAX(position),0)+1 n FROM lessons WHERE course_id=?', req.course.id).n;
   const file = fileUrl(req.body.file);
-  const id = Number(run('INSERT INTO lessons(course_id,module,title,content,video,file,file_name,position) VALUES(?,?,?,?,?,?,?,?)',
+  const id = Number(run('INSERT INTO lessons(course_id,module,title,content,video,file,file_name,image,video_file,position) VALUES(?,?,?,?,?,?,?,?,?,?)',
     req.course.id, text(req.body.module, 'Bölüm', 60), text(req.body.title, 'Ders adı', 100, 2), optText(req.body.content, 'İçerik', 10000), vid,
-    file, file ? optText(req.body.fileName, 'Dosya adı', 120) || 'dosya' : '', pos).lastInsertRowid);
+    file, file ? optText(req.body.fileName, 'Dosya adı', 120) || 'dosya' : '', img(req.body.image), vidUrl(req.body.videoFile), pos).lastInsertRowid);
   res.json({ id });
 });
 app.post('/api/lessons/:id/complete', auth, (req, res) => {
@@ -774,6 +782,52 @@ app.post('/api/posts/:id/vote', auth, loadPost, member, (req, res) => {
   run('INSERT OR REPLACE INTO poll_votes(post_id,user_id,option_idx) VALUES(?,?,?)', req.post.id, req.user.id, i);
   res.json({ ok: true });
 });
+// ---------- Video yükleme (parça parça) ----------
+// Büyük dosyalar tek istekte gönderilmez: tarayıcı videoyu 4 MB'lık parçalara böler, sunucu sırayla diske ekler.
+const MAX_VIDEO = (parseInt(process.env.MAX_VIDEO_MB, 10) || 2048) * 1024 * 1024;
+const CHUNK = 4 * 1024 * 1024;
+const pendingVideos = new Map();
+for (const f of fs.readdirSync(UPLOADS)) if (f.endsWith('.part')) fs.unlink(path.join(UPLOADS, f), () => {}); // yarım kalmış yüklemeleri temizle
+setInterval(() => {
+  for (const [id, u] of pendingVideos) if (u.at < now() - 2 * 3600e3) { fs.unlink(u.path, () => {}); pendingVideos.delete(id); }
+}, 10 * 60e3).unref();
+const sizeLabel = b => (b >= 1024 ** 3 ? `${(b / 1024 ** 3).toFixed(1).replace('.0', '')} GB` : `${Math.round(b / 1024 ** 2)} MB`);
+app.post('/api/video/start', auth, (req, res) => {
+  if (!one("SELECT 1 FROM memberships WHERE user_id=? AND role='admin'", req.user.id)) fail(403, 'Video yüklemek için bir topluluğun yöneticisi olmalısın');
+  const ext = /\.(mp4|webm|mov)$/i.exec(String(req.body.name || ''))?.[1].toLowerCase();
+  if (!ext) fail(400, 'Desteklenen video türleri: MP4, WebM, MOV');
+  const size = Number(req.body.size);
+  if (!Number.isInteger(size) || size < 1) fail(400, 'Video dosyası okunamadı');
+  if (size > MAX_VIDEO) fail(400, `Video en fazla ${sizeLabel(MAX_VIDEO)} olabilir. Daha uzun videolar için YouTube bağlantısı ekleyebilirsin.`);
+  let free = Infinity;
+  try { const s = fs.statfsSync(UPLOADS); free = s.bavail * s.bsize; } catch { /* ölçülemezse yüklemeye izin ver */ }
+  if (free < size + 100 * 1024 * 1024) fail(507, 'Sunucuda bu video için yeterli depolama alanı yok. YouTube bağlantısı ekleyebilirsin.');
+  if ([...pendingVideos.values()].filter(u => u.userId === req.user.id).length >= 3) fail(429, 'Aynı anda en fazla 3 video yükleyebilirsin');
+  const id = crypto.randomBytes(16).toString('hex'), file = path.join(UPLOADS, id + '.part');
+  fs.writeFileSync(file, '');
+  pendingVideos.set(id, { userId: req.user.id, ext, size, got: 0, path: file, at: now() });
+  res.json({ id, chunk: CHUNK });
+});
+app.put('/api/video/:id', auth, express.raw({ type: () => true, limit: CHUNK + 1024 * 1024 }), (req, res) => {
+  const u = pendingVideos.get(req.params.id);
+  if (!u || u.userId !== req.user.id) fail(404, 'Yükleme bulunamadı; baştan dene');
+  if (Number(req.query.offset) !== u.got) return res.status(409).json({ error: 'Parça sırası uyuşmuyor', got: u.got });
+  const buf = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+  if (!buf.length || u.got + buf.length > u.size) fail(400, 'Geçersiz parça');
+  try { fs.appendFileSync(u.path, buf); } catch { fs.unlink(u.path, () => {}); pendingVideos.delete(req.params.id); fail(507, 'Sunucuda depolama alanı doldu; video yüklenemedi'); }
+  u.got += buf.length; u.at = now();
+  res.json({ got: u.got });
+});
+app.post('/api/video/:id/finish', auth, (req, res) => {
+  const u = pendingVideos.get(req.params.id);
+  if (!u || u.userId !== req.user.id) fail(404, 'Yükleme bulunamadı; baştan dene');
+  if (u.got !== u.size) fail(400, 'Yükleme tamamlanmadı');
+  const name = `${req.params.id}.${u.ext}`;
+  fs.renameSync(u.path, path.join(UPLOADS, name));
+  pendingVideos.delete(req.params.id);
+  res.json({ url: '/uploads/' + name });
+});
+
 app.post('/api/upload-file', auth, (req, res) => {
   const name = text(req.body.name, 'Dosya adı', 120).replace(/[\\/\x00-\x1f"<>|:*?]/g, '_');
   const ext = /\.(pdf|zip|docx|xlsx|pptx|txt|csv)$/i.exec(name)?.[1].toLowerCase();

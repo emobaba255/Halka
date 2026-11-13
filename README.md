@@ -22,6 +22,7 @@ Ardından tarayıcıda `http://localhost:3000` adresini aç. İlk çalıştırma
 | `UPLOAD_DIR` | Yüklenen görsellerin klasörü (varsayılan `uploads/`) |
 | `BASE_URL` | Sitenin adresi; şifre sıfırlama bağlantılarında kullanılır |
 | `SMTP_URL` | E-posta sunucusu, örn. `smtps://kullanici:sifre@smtp.ornek.com`. Tanımlı değilse e-postalar gönderilmez, sunucu günlüğüne yazılır |
+| `MAX_VIDEO_MB` | Derslere yüklenen bir videonun en büyük boyutu (varsayılan 2048) |
 | `MAIL_FROM` | Gönderen adresi, örn. `Okul <bilgi@ornek.com>` |
 
 Yayına alırken veritabanı dosyası ile `uploads/` klasörünün kalıcı bir diskte durduğundan emin ol.

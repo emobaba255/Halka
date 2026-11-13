@@ -77,6 +77,8 @@ function addColumn(table, col, def) {
 addColumn('users', 'title', "TEXT DEFAULT ''");
 addColumn('users', 'link', "TEXT DEFAULT ''");
 addColumn('communities', 'rules', "TEXT DEFAULT ''");
+addColumn('lessons', 'image', "TEXT DEFAULT ''");
+addColumn('lessons', 'video_file', "TEXT DEFAULT ''");
 
 // Marka renkleri: lacivert, mavi, altın. Profil ve topluluk renkleri yalnızca bunlardan seçilir.
 const COLORS = ['#0f2747', '#1f5fd6', '#9a7016'];

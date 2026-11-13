@@ -172,6 +172,38 @@ async function uploadFile(file) {
   const dataUrl = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => no(new Error('Dosya okunamadı')); r.readAsDataURL(file); });
   return api('/upload-file', 'POST', { name: file.name, dataUrl });
 }
+// Videoyu parçalara bölerek yükler; ilerlemeyi formdaki çubukta gösterir
+async function uploadVideo(file, form) {
+  if (!file || !file.size) return '';
+  const box = $('.upbar', form), bar = box && $('i', box), label = box && $('span', box);
+  const leave = e => { e.preventDefault(); e.returnValue = ''; };
+  const call = async (path, opts) => {
+    const res = await fetch('/api' + path, opts), data = await res.json().catch(() => ({}));
+    if (!res.ok) throw Object.assign(new Error(data.error || 'Video yüklenemedi'), { got: data.got, status: res.status });
+    return data;
+  };
+  const { id, chunk } = await api('/video/start', 'POST', { name: file.name, size: file.size });
+  if (box) box.hidden = false;
+  window.addEventListener('beforeunload', leave);
+  try {
+    let sent = 0, retries = 0;
+    while (sent < file.size) {
+      try {
+        const r = await call(`/video/${id}?offset=${sent}`, { method: 'PUT', headers: { 'Content-Type': 'application/octet-stream' }, body: file.slice(sent, sent + chunk) });
+        sent = r.got; retries = 0;
+      } catch (err) {
+        if (err.status === 409 && Number.isInteger(err.got)) { sent = err.got; continue; } // sunucudaki konumdan devam et
+        if (err.status || ++retries > 4) throw err; // ağ kesintisinde birkaç kez yeniden dene
+        await new Promise(ok => setTimeout(ok, 1500 * retries));
+        continue;
+      }
+      const pct = Math.round(sent * 100 / file.size);
+      if (bar) bar.style.width = pct + '%';
+      if (label) label.textContent = `Video yükleniyor… %${pct} (${Math.round(sent / 1048576)} / ${Math.round(file.size / 1048576)} MB)`;
+    }
+    return (await api(`/video/${id}/finish`, 'POST')).url;
+  } finally { window.removeEventListener('beforeunload', leave); if (box) box.hidden = true; }
+}
 const afterAuth = () => { let h = '#/'; try { h = sessionStorage.getItem('after') || h; sessionStorage.removeItem('after'); } catch { /* depolama kapalıysa ana sayfa */ } return h; };
 const rich = s => esc(s).replace(/https?:\/\/[^\s<]+/g, u => `<a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`);
 
@@ -741,7 +773,11 @@ async function tabCourse(courseId, lessonId) {
           <div><label for="l-mod">Bölüm</label><input id="l-mod" type="text" name="module" required maxlength="60" list="mods" value="${esc(modules.at(-1) || '')}"><datalist id="mods">${modules.map(m => `<option value="${esc(m)}">`).join('')}</datalist></div>
           <div><label for="l-title">Ders adı</label><input id="l-title" type="text" name="title" required minlength="2" maxlength="100"></div>
           <div><label for="l-video">YouTube bağlantısı (isteğe bağlı)</label><input id="l-video" type="url" name="video" maxlength="200"></div>
-          <div><label for="l-file">Ders dosyası (isteğe bağlı)</label><input id="l-file" type="file" name="file" accept=".pdf,.zip,.docx,.xlsx,.pptx,.txt,.csv"></div>
+          <div><label for="l-img">Görsel (isteğe bağlı)</label><input id="l-img" type="file" name="image" accept="image/png,image/jpeg,image/webp,image/gif"></div>
+          <div><label for="l-vfile">Video dosyası (MP4, WebM, MOV)</label><input id="l-vfile" type="file" name="videoFile" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov">
+            <p class="small muted" style="margin-top:4px">Video parça parça yüklenir; bitene kadar sayfayı kapatma. Çok uzun videolar için YouTube bağlantısı daha hızlıdır.</p></div>
+          <div class="upbar" hidden><div class="bar"><i style="width:0"></i></div><span class="small muted">Video yükleniyor…</span></div>
+          <div><label for="l-file">Ders dosyası (PDF, ZIP, Word, Excel…)</label><input id="l-file" type="file" name="file" accept=".pdf,.zip,.docx,.xlsx,.pptx,.txt,.csv"></div>
           <div><label for="l-content">İçerik</label><textarea id="l-content" name="content" maxlength="10000" rows="5"></textarea></div>
           <button class="btn primary">Dersi ekle</button></form></details>
         <details class="adminbox"><summary class="btn sm block">${ic('edit')} Kursu düzenle</summary>
@@ -755,7 +791,9 @@ async function tabCourse(courseId, lessonId) {
     </div>
     <div class="card stack">${cur ? `
       <div class="small muted">${esc(cur.module)}</div><h2>${esc(cur.title)}</h2>
+      ${cur.video_file ? `<video class="lvideo" controls playsinline preload="metadata" src="${esc(cur.video_file)}"></video>` : ''}
       ${cur.video ? ytFrame(cur.video, cur.title) : ''}
+      ${cur.image ? `<a href="${esc(cur.image)}" target="_blank" rel="noopener"><img class="post-img" src="${esc(cur.image)}" alt="Ders görseli"></a>` : ''}
       <div class="body-text">${rich(cur.content)}</div>
       ${fileLink(cur.file, cur.file_name)}
       ${C.role === 'admin' ? `<details class="adminbox"><summary class="linkbtn" style="color:var(--accent)">${ic('edit')} Dersi düzenle</summary>
@@ -764,6 +802,12 @@ async function tabCourse(courseId, lessonId) {
           <div><label for="le-title">Ders adı</label><input id="le-title" type="text" name="title" value="${esc(cur.title)}" required minlength="2" maxlength="100"></div>
           <div><label for="le-video">YouTube bağlantısı</label><input id="le-video" type="url" name="video" value="${cur.video ? 'https://youtu.be/' + esc(cur.video) : ''}" maxlength="200"></div>
           <div><label for="le-content">İçerik</label><textarea id="le-content" name="content" maxlength="10000" rows="6">${esc(cur.content)}</textarea></div>
+          <div><label for="le-img">${cur.image ? 'Görseli değiştir' : 'Görsel ekle'}</label><input id="le-img" type="file" name="image" accept="image/png,image/jpeg,image/webp,image/gif"></div>
+          <div><label for="le-vfile">${cur.video_file ? 'Videoyu değiştir' : 'Video dosyası ekle'} (MP4, WebM, MOV)</label><input id="le-vfile" type="file" name="videoFile" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov">
+            <p class="small muted" style="margin-top:4px">Video parça parça yüklenir; bitene kadar sayfayı kapatma. Çok uzun videolar için YouTube bağlantısı daha hızlıdır.</p></div>
+          <div class="upbar" hidden><div class="bar"><i style="width:0"></i></div><span class="small muted">Video yükleniyor…</span></div>
+          ${cur.image ? '<label class="check"><input type="checkbox" name="removeImage"> Görseli kaldır</label>' : ''}
+          ${cur.video_file ? '<label class="check"><input type="checkbox" name="removeVideo"> Yüklenen videoyu kaldır</label>' : ''}
           <div class="row" style="flex-wrap:wrap"><button class="btn primary">Kaydet</button><button type="button" class="btn danger" data-act="delLesson" data-id="${cur.id}" data-course="${course.id}">Dersi sil</button></div></form></details>` : ''}
       <div class="row" style="flex-wrap:wrap;border-top:1px solid var(--line);padding-top:14px">
         <button class="btn ${cur.done ? '' : 'primary'}" data-act="complete" data-id="${cur.id}" data-next="${!cur.done && next ? href(next) : ''}">${cur.done ? '✓ Tamamlandı (geri al)' : 'Tamamlandı olarak işaretle'}</button>
@@ -1117,8 +1161,8 @@ const forms = {
   async comment(d, form) { await api(`/posts/${form.dataset.post}/comments`, 'POST', { body: d.body, parentId: S.replyTo }); route(); },
   async course(d) { const r = await api(slugPath() + '/courses', 'POST', d); go(`#/c/${C.community.slug}/classroom/${r.id}`); },
   async lesson(d, form) {
-    const f = await uploadFile(d.file);
-    const r = await api(`/courses/${form.dataset.course}/lessons`, 'POST', { module: d.module, title: d.title, video: d.video, content: d.content, file: f.url, fileName: f.name }); go(`#/c/${C.community.slug}/classroom/${form.dataset.course}/${r.id}`); },
+    const image = await upload(d.image), f = await uploadFile(d.file), videoFile = await uploadVideo(d.videoFile, form);
+    const r = await api(`/courses/${form.dataset.course}/lessons`, 'POST', { module: d.module, title: d.title, video: d.video, content: d.content, file: f.url, fileName: f.name, image, videoFile }); go(`#/c/${C.community.slug}/classroom/${form.dataset.course}/${r.id}`); },
   async event(d) {
     const startsAt = new Date(d.when).getTime();
     await api(slugPath() + '/events', 'POST', { ...d, startsAt });
@@ -1131,7 +1175,12 @@ const forms = {
     await refreshMe(); toast('Ayarlar kaydedildi'); route();
   },
   async courseEdit(d, form) { await api('/courses/' + form.dataset.id, 'PUT', d); toast('Kurs güncellendi'); route(); },
-  async lessonEdit(d, form) { await api('/lessons/' + form.dataset.id, 'PUT', d); toast('Ders güncellendi'); route(); },
+  async lessonEdit(d, form) {
+    const body = { module: d.module, title: d.title, video: d.video, content: d.content };
+    if (d.image?.size) body.image = await upload(d.image); else if (d.removeImage) body.image = '';
+    if (d.videoFile?.size) body.videoFile = await uploadVideo(d.videoFile, form); else if (d.removeVideo) body.videoFile = '';
+    await api('/lessons/' + form.dataset.id, 'PUT', body); toast('Ders güncellendi'); route();
+  },
   async postEdit(d, form) { await api('/posts/' + form.dataset.id, 'PUT', d); toast('Gönderi güncellendi'); route(); },
   async adminPricing(d) { await api(slugPath() + '/pricing', 'PUT', d); toast('Üyelik ayarları kaydedildi'); route(); },
   async liveStart(d) { await api(slugPath() + '/live', 'POST', d); toast('Yayın başladı, üyelere bildirim gönderildi'); go(`#/c/${C.community.slug}/live`); },
