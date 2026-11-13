@@ -12,6 +12,7 @@
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="manifest" href="manifest.json">
+<script>try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800&display=swap">
@@ -21,7 +22,7 @@
 <div id="loader" aria-hidden="true"></div>
 <header id="top"></header>
 <main id="app"><div class="splash"><img src="icon-192.png" alt="" width="72" height="72"><p>Okul yükleniyor…</p></div></main>
-<footer id="foot"><div class="wrap row spread"><span class="row"><img src="icon-192.png" alt="" width="26" height="26"><b>Okul</b><span class="hide-sm">· Topluluğunu ve kurslarını tek yerde topla</span></span><span class="row"><a href="#/teach" style="font-weight:600">Eğitmenler için</a><span>© <span id="year">2026</span> Okul</span></span></div></footer>
+<footer id="foot"><div class="wrap row spread"><span class="row"><img src="icon-192.png" alt="" width="26" height="26"><b>Okul</b><span class="hide-sm">· Topluluğunu ve kurslarını tek yerde topla</span></span><span class="row"><button class="linkbtn" data-act="cycleTheme" id="themeBtn">Tema</button><a href="#/teach" style="font-weight:600">Eğitmenler için</a><span>© <span id="year">2026</span> Okul</span></span></div></footer>
 <div id="toast" role="status" aria-live="polite"></div>
 <noscript><p style="padding:24px;text-align:center">Okul'u kullanmak için tarayıcında JavaScript'i açman gerekiyor.</p></noscript>
 <script src="app.js"></script>

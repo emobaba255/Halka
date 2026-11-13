@@ -1,18 +1,29 @@
 :root {
-  /* Marka: lacivert, mavi, altın */
+  /* Marka: lacivert, mavi, altın (her temada sabit) */
   --navy: #0f2747; --blue: #1f5fd6; --gold-bright: #d4a537;
+  /* Aydınlık tema */
   --bg: #f3f5f9; --surface: #ffffff; --ink: #0f2747; --muted: #5a6679; --line: #dde3ec;
-  --accent: #1f5fd6; --accent-ink: #ffffff; --soft: #e8effc; --gold: #94690c; --danger: #b3261e;
-  --topbar: #0f2747;
+  --accent: #1f5fd6; --accent-ink: #ffffff; --soft: #e8effc; --gold: #94690c; --danger: #b3261e; --on-danger: #ffffff;
+  --topbar: #0f2747; --av-ring: transparent;
   --radius: 14px; --shadow: 0 1px 2px rgba(15, 39, 71, .06), 0 4px 16px rgba(15, 39, 71, .06);
+  color-scheme: light;
 }
+/* Koyu tema: kullanıcı "Koyu"yu seçtiyse, ya da "Sistem"de cihaz koyu moddaysa */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0a1424; --surface: #12203a; --ink: #e8eef8; --muted: #9aa9c2; --line: #24375a;
-    --accent: #76a4ff; --accent-ink: #071630; --soft: #1a2f55; --gold: #e2b550; --danger: #f2877f;
-    --topbar: #0c1a31;
+    --accent: #76a4ff; --accent-ink: #071630; --soft: #1a2f55; --gold: #e2b550; --danger: #f2877f; --on-danger: #1c0b0a;
+    --topbar: #0c1a31; --av-ring: rgba(255, 255, 255, .22);
     --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+    color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+    --bg: #0a1424; --surface: #12203a; --ink: #e8eef8; --muted: #9aa9c2; --line: #24375a;
+    --accent: #76a4ff; --accent-ink: #071630; --soft: #1a2f55; --gold: #e2b550; --danger: #f2877f; --on-danger: #1c0b0a;
+    --topbar: #0c1a31; --av-ring: rgba(255, 255, 255, .22);
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+    color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -49,8 +60,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .menu hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
 .iconbtn { position: relative; width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); cursor: pointer; display: grid; place-items: center; font-size: 17px; }
 .iconbtn:hover { background: var(--bg); }
-.dot { position: absolute; top: -3px; right: -3px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
-@media (prefers-color-scheme: dark) { .dot { color: #1c0b0a; } }
+.dot { position: absolute; top: -3px; right: -3px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger); color: var(--on-danger); font-size: 11px; font-weight: 700; display: grid; place-items: center; }
 
 /* Düğmeler & formlar */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; cursor: pointer; white-space: nowrap; }
@@ -215,8 +225,7 @@ input[type=file] { width: 100%; font-size: 13px; }
 .danger-text { color: var(--danger); }
 
 /* Canlı yayın */
-.tag.live-tag { background: var(--danger); color: #fff; letter-spacing: .04em; }
-@media (prefers-color-scheme: dark) { .tag.live-tag { color: #1c0b0a; } }
+.tag.live-tag { background: var(--danger); color: var(--on-danger); letter-spacing: .04em; }
 .live-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--danger); vertical-align: middle; animation: pulse 1.4s infinite; }
 @keyframes pulse { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
@@ -269,8 +278,7 @@ body { overflow-wrap: break-word; }
 .btn.gold:hover { filter: brightness(1.06); background: var(--gold-bright); }
 .btn.ghostlight { background: rgba(255, 255, 255, .1); border-color: rgba(255, 255, 255, .35); color: #fff; }
 .btn.ghostlight:hover { background: rgba(255, 255, 255, .18); }
-.btn.dangerfill { background: var(--danger); border-color: var(--danger); color: #fff; }
-@media (prefers-color-scheme: dark) { .btn.dangerfill { color: #1c0b0a; } }
+.btn.dangerfill { background: var(--danger); border-color: var(--danger); color: var(--on-danger); }
 .like .ic { width: 15px; height: 15px; }
 .tag .ic { width: 12px; height: 12px; }
 
@@ -403,3 +411,7 @@ input[type=range] { accent-color: var(--accent); padding: 0; }
 .viscard input:checked + span { border-color: var(--accent); box-shadow: 0 0 0 2px var(--soft); background: var(--soft); }
 .viscard input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 .viscard { position: relative; }
+
+/* Koyu temada lacivert profil daireleri zeminden ayrışsın */
+.av { box-shadow: 0 0 0 1px var(--av-ring); }
+#foot .linkbtn { font-size: 13px; }

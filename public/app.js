@@ -18,6 +18,7 @@ const go = hash => { if (location.hash === hash) route(); else location.hash = h
 
 // ---------- Simgeler, logo, onay penceresi ----------
 const ICONS = {
+  moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
   eyeoff: '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><path d="m1 1 22 22"/>',
   cap: '<path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>',
   code: '<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>',
@@ -91,6 +92,17 @@ function ask({ title, text = '', ok = 'Evet', cancel = 'Vazgeç', danger = false
     d.showModal();
   });
 }
+
+// ---------- Tema ----------
+// Seçim bu cihazda saklanır: "system" cihazın ayarını izler, "light" ve "dark" onu geçersiz kılar
+const THEMES = [['system', 'monitor', 'Sistem', 'Cihazının ayarını izler.'], ['light', 'sun', 'Aydınlık', 'Açık zemin, koyu yazı.'], ['dark', 'moon', 'Koyu', 'Koyu zemin, göz yormayan renkler.']];
+function getTheme() { try { const t = localStorage.getItem('theme'); return t === 'dark' || t === 'light' ? t : 'system'; } catch { return document.documentElement.dataset.theme || 'system'; } }
+function setTheme(t) {
+  try { if (t === 'system') localStorage.removeItem('theme'); else localStorage.setItem('theme', t); } catch { /* saklanamazsa yalnızca bu oturumda geçerli olur */ }
+  if (t === 'system') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
+  paintThemeBtn(t);
+}
+function paintThemeBtn(t = getTheme()) { const b = $('#themeBtn'), th = THEMES.find(x => x[0] === t); if (b) b.innerHTML = `${ic(th[1])} Tema: ${th[2]}`; }
 
 // ---------- Simge seçici ve görünürlük ----------
 const COMMUNITY_ICONS = ['cap', 'book', 'code', 'pen', 'monitor', 'cpu', 'camera', 'film', 'video', 'music', 'mic', 'headphones', 'globe', 'comment', 'users', 'briefcase', 'trend', 'dollar', 'shopping', 'target', 'award', 'star', 'zap', 'activity', 'heart', 'smile', 'sun', 'coffee', 'home', 'compass', 'layers', 'tool', 'feather', 'edit'];
@@ -183,7 +195,7 @@ function renderTop() {
       <button class="iconbtn" style="border:0;padding:0" data-act="menu" data-menu="user" aria-label="Hesap menüsü">${avatar(u.name, u.color, 0, '', u.avatar)}</button>
       ${S.menu === 'user' ? `<div class="menu right">
         <div style="padding:8px 10px"><b>${esc(u.name)}</b><div class="muted small">${esc(u.email)}</div></div><hr>
-        <a href="#/u/${u.id}">${ic('user')} Profilim</a><a href="#/settings">${ic('edit')} Profil ayarları</a><a href="#/m">${ic('mail')} Mesajlar</a><hr><a href="#/teach">${ic('award')} Eğitim ver</a>
+        <a href="#/u/${u.id}">${ic('user')} Profilim</a><a href="#/settings">${ic('edit')} Profil ayarları</a><a href="#/m">${ic('mail')} Mesajlar</a><button class="item" data-act="cycleTheme">${ic(THEMES.find(x => x[0] === getTheme())[1])} Tema: ${THEMES.find(x => x[0] === getTheme())[2]}</button><hr><a href="#/teach">${ic('award')} Eğitim ver</a>
         <button class="item" data-act="logout">${ic('logout')} Çıkış yap</button></div>` : ''}
     </div>` : `<a class="btn ghost hide-sm" href="#/teach">Eğitim ver</a><a class="btn ghost" href="#/login">Giriş yap</a><a class="btn primary" href="#/register">Kayıt ol</a>`;
   $('#top').innerHTML = `<div class="wrap row topbar"><a class="logo" href="#/" aria-label="Okul ana sayfa">${logoMark()}<span>Okul</span></a>${switcher}<span class="grow"></span>${right}</div>`;
@@ -402,6 +414,8 @@ function viewSettings() {
         <div class="stack grow" style="min-width:200px"><p class="small muted">Fotoğrafını seçince kırpma ekranı açılır: sürükleyerek konumlandır, yakınlaştır, döndür. Kaydetmeden önce nasıl görüneceğini görürsün.</p>
           <div class="row" style="flex-wrap:wrap"><label class="btn primary">${ic('camera')} ${u.avatar ? 'Fotoğrafı değiştir' : 'Fotoğraf yükle'}<input type="file" accept="image/png,image/jpeg,image/webp" data-pick="avatar" hidden></label>
             ${u.avatar ? '<button class="btn danger" data-act="removeAvatar">Kaldır</button>' : ''}</div></div></div></div>
+    <div class="card stack"><h3>Görünüm</h3><p class="small muted">Tema seçimin bu cihazda hatırlanır.</p>
+      <div class="vis">${THEMES.map(([k, i, t, d]) => `<label class="viscard"><input type="radio" name="theme" value="${k}" ${getTheme() === k ? 'checked' : ''}><span>${ic(i)}<b>${t}</b><small>${d}</small></span></label>`).join('')}</div></div>
     <form class="card stack" data-form="profile"><h3>Bilgiler</h3>
       <div><label for="p-name">Ad Soyad</label><input id="p-name" type="text" name="name" value="${esc(u.name)}" required minlength="2" maxlength="60" autocomplete="name"></div>
       <div><label for="p-title">Unvan</label><input id="p-title" type="text" name="title" value="${esc(u.title)}" maxlength="60" placeholder="Örn. Grafik tasarım öğrencisi"></div>
@@ -1040,6 +1054,11 @@ const acts = {
     if (!await ask({ title: `"${C.community.name}" kalıcı olarak silinsin mi?`, text: 'Tüm gönderiler, kurslar, etkinlikler ve üyelikler silinir. Bu işlem geri alınamaz.', ok: 'Kalıcı olarak sil', danger: true })) return;
     await api(slugPath(), 'DELETE'); await refreshMe(); toast('Topluluk silindi'); go('#/');
   },
+  cycleTheme() {
+    const order = THEMES.map(x => x[0]), next = order[(order.indexOf(getTheme()) + 1) % order.length];
+    setTheme(next); renderTop(); toast('Tema: ' + THEMES.find(x => x[0] === next)[2]);
+    const r = $(`input[name=theme][value=${next}]`); if (r) r.checked = true;
+  },
   async cancelRequest() { await api(slugPath() + '/join', 'DELETE'); toast('İstek geri çekildi'); route(); },
   async decide(el) { await api(`${slugPath()}/requests/${el.dataset.id}`, 'POST', { approve: !!el.dataset.ok }); toast(el.dataset.ok ? 'Üye onaylandı' : 'İstek reddedildi'); route(); },
   async kick(el) { if (!await ask({ title: `${el.dataset.name} topluluktan çıkarılsın mı?`, danger: true })) return; await api(`${slugPath()}/members/${el.dataset.id}`, 'DELETE'); route(); },
@@ -1169,6 +1188,7 @@ document.addEventListener('input', ev => {
   }
 });
 document.addEventListener('change', ev => {
+  if (ev.target.name === 'theme') { setTheme(ev.target.value); toast('Tema: ' + THEMES.find(x => x[0] === ev.target.value)[2]); }
   if (ev.target.dataset.change === 'feedSort') { S.feed.sort = ev.target.value; route(); }
 });
 document.addEventListener('input', ev => {
@@ -1199,5 +1219,6 @@ setInterval(async () => {
 }, 6000);
 
 $('#year').textContent = new Date().getFullYear();
+paintThemeBtn();
 window.addEventListener('hashchange', route);
 refreshMe().then(route, route);
