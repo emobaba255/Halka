@@ -20,6 +20,8 @@ const go = hash => { if (location.hash === hash) route(); else location.hash = h
 
 // ---------- Simgeler, logo, onay penceresi ----------
 const ICONS = {
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  ext: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/>',
   moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
   eyeoff: '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><path d="m1 1 22 22"/>',
   cap: '<path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>',
@@ -206,6 +208,12 @@ async function uploadVideo(file, form) {
     return (await api(`/video/${id}/finish`, 'POST')).url;
   } finally { window.removeEventListener('beforeunload', leave); if (box) box.hidden = true; }
 }
+// Formdaki çoklu dosya alanındaki ("files") tüm dosyaları sırayla yükler
+async function uploadFiles(form) {
+  const out = [];
+  for (const f of new FormData(form).getAll('files')) { const r = await uploadFile(f); if (r.url) out.push({ url: r.url, name: r.name }); }
+  return out;
+}
 const afterAuth = () => { let h = '#/'; try { h = sessionStorage.getItem('after') || h; sessionStorage.removeItem('after'); } catch { /* depolama kapalıysa ana sayfa */ } return h; };
 const rich = s => esc(s).replace(/https?:\/\/[^\s<]+/g, u => `<a href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`);
 
@@ -229,9 +237,9 @@ function renderTop() {
       <button class="iconbtn" style="border:0;padding:0" data-act="menu" data-menu="user" aria-label="Hesap menüsü">${avatar(u.name, u.color, 0, '', u.avatar)}</button>
       ${S.menu === 'user' ? `<div class="menu right">
         <div style="padding:8px 10px"><b>${esc(u.name)}</b><div class="muted small">${esc(u.email)}</div></div><hr>
-        <a href="#/u/${u.id}">${ic('user')} Profilim</a><a href="#/settings">${ic('edit')} Profil ayarları</a><a href="#/m">${ic('mail')} Mesajlar</a><button class="item" data-act="cycleTheme">${ic(THEMES.find(x => x[0] === getTheme())[1])} Tema: ${THEMES.find(x => x[0] === getTheme())[2]}</button><hr><a href="#/teach">${ic('award')} Eğitim ver</a>
+        <a href="#/u/${u.id}">${ic('user')} Profilim</a><a href="#/settings">${ic('settings')} Ayarlar</a><a href="#/m">${ic('mail')} Mesajlar</a><button class="item" data-act="cycleTheme">${ic(THEMES.find(x => x[0] === getTheme())[1])} Tema: ${THEMES.find(x => x[0] === getTheme())[2]}</button><hr><a href="#/teach">${ic('award')} Eğitim ver</a>
         <button class="item" data-act="logout">${ic('logout')} Çıkış yap</button></div>` : ''}
-    </div>` : `<a class="btn ghost hide-sm" href="#/teach">Eğitim ver</a><a class="btn ghost" href="#/login">Giriş yap</a><a class="btn primary" href="#/register">Kayıt ol</a>`;
+    </div>` : `<a class="btn ghost hide-sm" href="#/teach">Eğitim ver</a><a class="btn ghost hide-sm" href="#/pricing">Fiyatlar</a><a class="btn ghost" href="#/login">Giriş yap</a><a class="btn primary" href="#/register">Kayıt ol</a>`;
   $('#top').innerHTML = `<div class="wrap row topbar"><a class="logo" href="#/" aria-label="Okul ana sayfa">${logoMark()}<span>Okul</span></a>${switcher}<span class="grow"></span>${right}</div>`;
 }
 function renderNotes() {
@@ -268,9 +276,10 @@ async function route() {
     else if (a === 'reset') html = viewReset(b || '');
     else if (a === 'i') html = await viewInvite(b || '');
     else if (a === 'teach') html = viewTeach();
+    else if (a === 'pricing') html = viewPricing();
     else if (!S.user && a !== 'c') return go('#/login');
     else if (a === 'new') html = viewNew();
-    else if (a === 'settings') html = viewSettings();
+    else if (a === 'settings') html = viewSettings(b);
     else if (a === 'u') html = await viewProfile(b);
     else if (a === 'm') html = await viewMessages(b);
     else if (a === 'c') html = await viewCommunity(b, c, d, e);
@@ -342,7 +351,8 @@ function viewTeach() {
       <span class="tag gold">Eğitmenler için</span>
       <h1>Bildiğini öğret,<br>topluluğunu büyüt</h1>
       <p class="muted">Kurslarını, öğrencilerini ve canlı derslerini tek bir yerden yönet. Kurulumu birkaç dakika sürer.</p>
-      <div class="row cta"><button class="btn primary lg" data-act="teachStart">Topluluğunu kur</button><a class="btn lg" href="#/">Önce toplulukları gez</a></div>
+      <div class="row cta"><button class="btn primary lg" data-act="teachStart">Topluluğunu kur</button><a class="btn lg" href="#/pricing">Fiyatlandırma</a></div>
+      <p class="small muted" style="margin-top:12px">Aylık ücret yok. Ücretsiz topluluklar her zaman ücretsiz.</p>
     </div></section>
     <div class="wrap stack" style="padding-bottom:20px">
       <div class="tgrid">
@@ -439,18 +449,18 @@ async function viewProfile(id) {
     </div></div></div>`;
 }
 
-// ---------- Profil ayarları ----------
-function viewSettings() {
-  const u = S.user;
-  return `<div class="wrap"><div class="narrow stack">
-    <div class="row spread" style="flex-wrap:wrap"><h1>Profil ayarları</h1><a class="btn" href="#/u/${u.id}">Profilimi gör</a></div>
+// ---------- Ayarlar ----------
+const SETTINGS_NAV = [['profil', 'user', 'Profil'], ['hesap', 'lock', 'Hesap ve güvenlik'], ['bildirimler', 'bell', 'Bildirimler'], ['gizlilik', 'eyeoff', 'Gizlilik'], ['gorunum', 'sun', 'Görünüm']];
+const toggle = (key, title, text, on) => `<label class="switchrow"><span><b>${title}</b><small>${text}</small></span><input type="checkbox" class="switch" data-pref="${key}" ${on ? 'checked' : ''}></label>`;
+function viewSettings(sec) {
+  const u = S.user, cur = SETTINGS_NAV.some(n => n[0] === sec) ? sec : 'profil';
+  const body = {
+    profil: () => `
     <div class="card stack"><h3>Profil fotoğrafı</h3>
       <div class="row" style="flex-wrap:wrap;gap:18px">${avatar(u.name, u.color, 0, 'xl', u.avatar)}
         <div class="stack grow" style="min-width:200px"><p class="small muted">Fotoğrafını seçince kırpma ekranı açılır: sürükleyerek konumlandır, yakınlaştır, döndür. Kaydetmeden önce nasıl görüneceğini görürsün.</p>
           <div class="row" style="flex-wrap:wrap"><label class="btn primary">${ic('camera')} ${u.avatar ? 'Fotoğrafı değiştir' : 'Fotoğraf yükle'}<input type="file" accept="image/png,image/jpeg,image/webp" data-pick="avatar" hidden></label>
             ${u.avatar ? '<button class="btn danger" data-act="removeAvatar">Kaldır</button>' : ''}</div></div></div></div>
-    <div class="card stack"><h3>Görünüm</h3><p class="small muted">Tema seçimin bu cihazda hatırlanır.</p>
-      <div class="vis">${THEMES.map(([k, i, t, d]) => `<label class="viscard"><input type="radio" name="theme" value="${k}" ${getTheme() === k ? 'checked' : ''}><span>${ic(i)}<b>${t}</b><small>${d}</small></span></label>`).join('')}</div></div>
     <form class="card stack" data-form="profile"><h3>Bilgiler</h3>
       <div><label for="p-name">Ad Soyad</label><input id="p-name" type="text" name="name" value="${esc(u.name)}" required minlength="2" maxlength="60" autocomplete="name"></div>
       <div><label for="p-title">Unvan</label><input id="p-title" type="text" name="title" value="${esc(u.title)}" maxlength="60" placeholder="Örn. Grafik tasarım öğrencisi"></div>
@@ -458,15 +468,105 @@ function viewSettings() {
       <div><label for="p-link">Web sitesi ya da sosyal medya bağlantısı</label><input id="p-link" type="text" name="link" value="${esc(u.link)}" maxlength="200" placeholder="ornek.com" inputmode="url" autocapitalize="off"></div>
       <div><p class="small muted" style="font-weight:600;margin-bottom:6px">Başkalarına böyle görünür</p>
         <div class="pcard row" style="align-items:flex-start">${avatar(u.name, u.color, 0, '', u.avatar)}<div class="grow"><b id="pvName">${esc(u.name)}</b><div class="small" id="pvTitle" style="font-weight:600">${esc(u.title)}</div><div class="small muted body-text" id="pvBio">${esc(u.bio)}</div></div></div></div>
-      <div><button class="btn primary">Bilgileri kaydet</button></div></form>
+      <div class="row" style="flex-wrap:wrap"><button class="btn primary">Bilgileri kaydet</button><a class="btn" href="#/u/${u.id}">Profilimi gör</a></div></form>`,
+    hesap: () => `
+    <form class="card stack" data-form="email"><h3>E-posta adresi</h3><p class="small muted">Giriş yaparken ve şifre sıfırlarken bu adres kullanılır. Kimseye gösterilmez.</p>
+      <div><label for="em-new">E-posta</label><input id="em-new" type="email" name="email" value="${esc(u.email)}" required autocomplete="email"></div>
+      <div><label for="em-pass">Onay için şifren</label><input id="em-pass" type="password" name="password" required autocomplete="current-password"></div>
+      <div><button class="btn primary">E-postayı güncelle</button></div></form>
     <form class="card stack" data-form="password"><h3>Şifre</h3>
       <div><label for="pw-cur">Mevcut şifre</label><input id="pw-cur" type="password" name="current" required autocomplete="current-password"></div>
-      <div><label for="pw-new">Yeni şifre</label><input id="pw-new" type="password" name="next" required minlength="8" autocomplete="new-password"></div>
+      <div><label for="pw-new">Yeni şifre (en az 8 karakter)</label><input id="pw-new" type="password" name="next" required minlength="8" autocomplete="new-password"></div>
       <div><label for="pw-again">Yeni şifre (tekrar)</label><input id="pw-again" type="password" name="again" required minlength="8" autocomplete="new-password"></div>
+      <p class="small muted">Şifreni değiştirince diğer cihazlardaki oturumların kapanır.</p>
       <div><button class="btn primary">Şifreyi güncelle</button></div></form>
-    <div class="card row spread" style="flex-wrap:wrap"><div><h3>Hesap</h3><p class="small muted">${esc(u.email)}</p></div><button class="btn" data-act="logout">${ic('logout')} Çıkış yap</button></div>
-    <div class="card stack" style="border-color:var(--danger)"><h3>Hesabı sil</h3><p class="small muted">Profil bilgilerin, mesajların ve üyeliklerin kalıcı olarak silinir. Gönderi ve yorumların “Silinmiş kullanıcı” adıyla kalır. Bu işlem geri alınamaz.</p><div><button class="btn danger" data-act="deleteAccount">Hesabımı sil</button></div></div>
+    <div class="card row spread" style="flex-wrap:wrap"><div><h3>Oturum</h3><p class="small muted">Bu cihazdaki oturumu kapat.</p></div><button class="btn" data-act="logout">${ic('logout')} Çıkış yap</button></div>
+    <div class="card stack" style="border-color:var(--danger)"><h3>Hesabı sil</h3><p class="small muted">Profil bilgilerin, mesajların ve üyeliklerin kalıcı olarak silinir. Gönderi ve yorumların “Silinmiş kullanıcı” adıyla kalır. Bu işlem geri alınamaz.</p><div><button class="btn danger" data-act="deleteAccount">Hesabımı sil</button></div></div>`,
+    bildirimler: () => `
+    <div class="card stack"><h3>Bildirimler</h3><p class="small muted">Zil simgesinde hangi olayların görüneceğini seç. Değişiklikler anında kaydedilir.</p>
+      ${toggle('comments', 'Yorumlar ve yanıtlar', 'Gönderine yorum yapıldığında ya da yorumuna yanıt verildiğinde.', u.prefs.comments)}
+      ${toggle('likes', 'Beğeniler', 'Gönderin ya da yorumun beğenildiğinde.', u.prefs.likes)}
+      ${toggle('live', 'Canlı yayınlar', 'Üyesi olduğun bir toplulukta canlı yayın başladığında.', u.prefs.live)}
+      ${toggle('membership', 'Üyelik işlemleri', 'Katılma isteğin onaylandığında; yöneticiysen yeni istek geldiğinde.', u.prefs.membership)}
+    </div>
+    <div class="card notice small">E-posta ile bildirim henüz gönderilmiyor; bildirimler yalnızca site içinde görünür.</div>`,
+    gizlilik: () => `
+    <div class="card stack"><h3>Gizlilik</h3>
+      ${toggle('messages', 'Özel mesaj al', 'Kapatırsan kimse sana yeni özel mesaj gönderemez; profilinde “Mesaj gönder” düğmesi görünmez.', u.prefs.messages)}
+    </div>
+    <div class="card stack"><h3>Başkaları neyi görür?</h3>
+      <ul class="small muted" style="margin:0;padding-left:18px;line-height:1.8">
+        <li>Adın, unvanın, hakkında yazın, fotoğrafın ve bağlantın: giriş yapmış herkese açık.</li>
+        <li>E-posta adresin: kimseye gösterilmez.</li>
+        <li>Gönderilerin: yalnızca o topluluğun üyelerine görünür.</li>
+        <li>Özel mesajların: yalnızca sen ve yazıştığın kişi.</li>
+      </ul></div>`,
+    gorunum: () => `
+    <div class="card stack"><h3>Tema</h3><p class="small muted">Seçimin bu cihazda hatırlanır.</p>
+      <div class="vis">${THEMES.map(([k, i, t, d]) => `<label class="viscard"><input type="radio" name="theme" value="${k}" ${getTheme() === k ? 'checked' : ''}><span>${ic(i)}<b>${t}</b><small>${d}</small></span></label>`).join('')}</div></div>`,
+  }[cur]();
+  return `<div class="wrap"><div class="settings">
+    <nav class="snav" aria-label="Ayarlar bölümleri"><h1>Ayarlar</h1>${SETTINGS_NAV.map(([k, i, l]) => `<a class="${k === cur ? 'on' : ''}" href="#/settings/${k}">${ic(i)} ${l}</a>`).join('')}</nav>
+    <div class="stack">${body}</div>
   </div></div>`;
+}
+
+// ---------- Fiyatlandırma ----------
+const FEE = 5; // ücretli üyelik satışlarından alınacak hizmet payı (%)
+const tl = n => '₺' + Math.round(n).toLocaleString('tr-TR');
+function viewPricing() {
+  const li = t => `<li>${ic('check')}<span>${t}</span></li>`;
+  const faq = (q, a) => `<details class="card faq"><summary>${q}</summary><p class="muted">${a}</p></details>`;
+  return `<section class="teach-hero"><div class="wrap">
+      <span class="tag gold">Fiyatlandırma</span>
+      <h1>Aylık ücret yok.<br>Sen kazanınca biz de kazanırız.</h1>
+      <p class="muted">Topluluk kurmak, kurs eklemek ve öğrenci almak ücretsiz. Yalnızca ücretli üyelik sattığında, satıştan küçük bir hizmet payı alırız.</p>
+    </div></section>
+    <div class="wrap stack" style="padding-bottom:24px">
+      <div class="pricegrid">
+        <div class="card plan">
+          <span class="tag">Tek plan</span>
+          <div class="price"><b>₺0</b><span>/ ay</span></div>
+          <p class="muted">Kurulum ücreti, aylık ücret ya da taahhüt yok.</p>
+          <ul class="checks">
+            ${li('Sınırsız üye, kurs ve ders')}${li('Topluluk akışı, anketler, özel mesajlar')}${li('Canlı yayın ve anlık sohbet')}${li('Yönetim paneli ve istatistikler')}
+            ${li('Açık, özel ya da gizli topluluk; davet bağlantısı')}${li('Kendi logon, kapak görselin ve kuralların')}${li('Aylık ya da tek seferlik ücretli üyelik')}
+          </ul>
+          <button class="btn primary lg block" data-act="teachStart">Ücretsiz başla</button>
+        </div>
+        <div class="stack">
+          <div class="card stack"><h3>Ücretsiz topluluklar</h3><div class="price sm"><b>%0</b><span>kesinti</span></div><p class="small muted">Üyelerinden ücret almıyorsan Okul'a hiçbir şey ödemezsin. Süre ya da üye sınırı yok.</p></div>
+          <div class="card stack" style="border-color:var(--gold-bright)"><h3>Ücretli üyelikler</h3><div class="price sm"><b>%${FEE}</b><span>hizmet payı</span></div><p class="small muted">Yalnızca tahsil edilen üyelik ödemelerinden. Satış yoksa ödeme de yok; gelirinin %${100 - FEE}'i sende kalır.</p></div>
+          <div class="card notice small"><b>Tanıtım dönemi:</b> kartla ödeme altyapımız açılana kadar hizmet payı alınmıyor. Bu dönemde üyelik ödemeleri doğrudan eğitmenin hesabına yapılır ve tamamı eğitmende kalır.</div>
+        </div>
+      </div>
+      <div class="card stack calc"><h2>Ne kadar kazanırsın?</h2><p class="small muted">Üye sayını ve aylık ücretini yaz; hesap anında güncellenir.</p>
+        <div class="row" style="flex-wrap:wrap;align-items:flex-end"><div class="grow" style="min-width:140px"><label for="pc-n">Ücretli üye sayısı</label><input id="pc-n" type="number" min="0" max="1000000" step="1" value="50" data-calc inputmode="numeric"></div>
+          <div class="grow" style="min-width:140px"><label for="pc-p">Aylık üyelik ücreti (₺)</label><input id="pc-p" type="number" min="0" max="1000000" step="1" value="200" data-calc inputmode="numeric"></div></div>
+        <div class="statgrid" id="calcOut">${calcOut(50, 200)}</div>
+        <p class="small muted">Kartla ödeme açıldığında banka ya da ödeme kuruluşunun işlem kesintisi ayrıca uygulanır; oranı bu sayfada açıkça yazılacak.</p></div>
+      <div class="card stack"><h2>Neden bu model?</h2>
+        <div class="cmp" role="table" aria-label="Karşılaştırma">
+          <div role="row" class="cmp-head"><span role="columnheader"></span><span role="columnheader">Okul</span><span role="columnheader">Sabit aylık ücretli platformlar</span></div>
+          <div role="row"><span role="rowheader">Aylık ücret</span><b role="cell">Yok</b><span role="cell">Üyen olmasa da ödenir</span></div>
+          <div role="row"><span role="rowheader">İlk üyeyi beklerken</span><b role="cell">₺0</b><span role="cell">İlk aydan itibaren masraf</span></div>
+          <div role="row"><span role="rowheader">Ücretsiz topluluk</span><b role="cell">Her zaman ücretsiz</b><span role="cell">Genellikle deneme süresiyle sınırlı</span></div>
+          <div role="row"><span role="rowheader">Ne zaman ödersin?</span><b role="cell">Yalnızca satış yaptığında</b><span role="cell">Her ay, satıştan bağımsız</span></div>
+        </div>
+        <p class="small muted">Yeni başlayan bir eğitmen için en büyük risk, henüz kazanmadan ödemeye başlamaktır. Okul'da bu risk yok: topluluğun büyüdükçe birlikte kazanırız.</p></div>
+      <div><h2>Sık sorulanlar</h2></div>
+      ${faq('Öğrenciler Okul\'a ücret öder mi?', 'Hayır. Öğrenci olmak, topluluklara katılmak ve ücretsiz kursları izlemek tamamen ücretsizdir. Ücretli bir topluluğa katılan öğrenci yalnızca eğitmenin belirlediği üyelik ücretini öder.')}
+      ${faq('Hizmet payı tam olarak neden alınır?', `Yalnızca ücretli üyelik ödemelerinden, %${FEE} oranında. Ücretsiz topluluklardan, kurs sayısından, üye sayısından ya da canlı yayınlardan ek ücret alınmaz.`)}
+      ${faq('Şu an bir şey ödeyecek miyim?', 'Hayır. Kartla ödeme altyapımız açılana kadar tanıtım dönemindeyiz: hizmet payı alınmıyor, üyelik ödemeleri doğrudan senin hesabına yapılıyor.')}
+      ${faq('Ücretsiz başlayıp sonra ücretliye geçebilir miyim?', 'Evet. Üyelik türünü yönetim panelinden istediğin zaman ücretsiz, aylık ya da tek seferlik olarak değiştirebilirsin.')}
+      ${faq('Taahhüt ya da iptal ücreti var mı?', 'Yok. Topluluğunu istediğin zaman kapatabilirsin.')}
+      <div style="text-align:center;padding:8px 0 16px"><button class="btn primary lg" data-act="teachStart">Topluluğunu ücretsiz kur</button></div>
+    </div>`;
+}
+function calcOut(n, p) {
+  const gross = Math.max(0, n) * Math.max(0, p), fee = gross * FEE / 100;
+  const s = (v, l, sub) => `<div class="card stat"><b>${v}</b><span>${l}</span><small>${sub}</small></div>`;
+  return s(tl(gross), 'Aylık üyelik geliri', `${Math.max(0, n).toLocaleString('tr-TR')} üye × ${tl(Math.max(0, p))}`) + s(tl(gross - fee), 'Sana kalan', `Gelirin %${100 - FEE}'i`) + s(tl(fee), 'Okul hizmet payı', `%${FEE} · üye başına ${tl(Math.max(0, p) * FEE / 100)}`);
 }
 
 // ---------- Fotoğraf kırpma ----------
@@ -787,7 +887,9 @@ async function tabCourse(courseId, lessonId) {
           <div><label for="l-vfile">Video dosyası (MP4, WebM, MOV)</label><input id="l-vfile" type="file" name="videoFile" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov">
             <p class="small muted" style="margin-top:4px">Video parça parça yüklenir; bitene kadar sayfayı kapatma. Çok uzun videolar için YouTube bağlantısı daha hızlıdır.</p></div>
           <div class="upbar" hidden><div class="bar"><i style="width:0"></i></div><span class="small muted">Video yükleniyor…</span></div>
-          <div><label for="l-file">Ders dosyası (PDF, ZIP, Word, Excel…)</label><input id="l-file" type="file" name="file" accept=".pdf,.zip,.docx,.xlsx,.pptx,.txt,.csv"></div>
+          <div><label for="l-file">Ders dosyaları (PDF, ZIP, Word, Excel… en çok 10)</label><input id="l-file" type="file" name="files" multiple accept=".pdf,.zip,.docx,.xlsx,.pptx,.txt,.csv"></div>
+          <div><label for="l-links">Bağlantılar (her satıra bir tane)</label><textarea id="l-links" name="links" rows="3" maxlength="6000" style="min-height:70px" placeholder="Figma | https://figma.com&#10;ornek.com/makale"></textarea>
+            <p class="small muted" style="margin-top:4px">Başlık vermek için “Başlık | adres” yaz; yalnızca adres yazarsan site adı gösterilir.</p></div>
           <div><label for="l-content">İçerik</label><textarea id="l-content" name="content" maxlength="10000" rows="5"></textarea></div>
           <button class="btn primary">Dersi ekle</button></form></details>
         <details class="adminbox"><summary class="btn sm block">${ic('edit')} Kursu düzenle</summary>
@@ -805,7 +907,9 @@ async function tabCourse(courseId, lessonId) {
       ${cur.video ? ytFrame(cur.video, cur.title) : ''}
       ${cur.image ? `<a href="${esc(cur.image)}" target="_blank" rel="noopener"><img class="post-img" src="${esc(cur.image)}" alt="Ders görseli"></a>` : ''}
       <div class="body-text">${rich(cur.content)}</div>
-      ${fileLink(cur.file, cur.file_name)}
+      ${cur.links.length || cur.files.length ? `<div class="resources"><h3>Kaynaklar</h3>
+        ${cur.links.map(l => { let host = ''; try { host = new URL(l.url).hostname.replace(/^www\./, ''); } catch { /* gösterilmez */ } return `<a class="file" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${ic('link')} <span><b style="color:inherit;font-size:inherit">${esc(l.title)}</b>${host && host !== l.title ? ` <small class="muted">${esc(host)}</small>` : ''}</span>${ic('ext')}</a>`; }).join('')}
+        ${cur.files.map(f => fileLink(f.url, f.name)).join('')}</div>` : ''}
       ${C.role === 'admin' ? `<details class="adminbox"><summary class="linkbtn" style="color:var(--accent)">${ic('edit')} Dersi düzenle</summary>
         <form class="stack" data-form="lessonEdit" data-id="${cur.id}">
           <div><label for="le-mod">Bölüm</label><input id="le-mod" type="text" name="module" value="${esc(cur.module)}" required maxlength="60"></div>
@@ -818,6 +922,9 @@ async function tabCourse(courseId, lessonId) {
           <div class="upbar" hidden><div class="bar"><i style="width:0"></i></div><span class="small muted">Video yükleniyor…</span></div>
           ${cur.image ? '<label class="check"><input type="checkbox" name="removeImage"> Görseli kaldır</label>' : ''}
           ${cur.video_file ? '<label class="check"><input type="checkbox" name="removeVideo"> Yüklenen videoyu kaldır</label>' : ''}
+          <div><label for="le-links">Bağlantılar (her satıra bir tane: “Başlık | adres”)</label><textarea id="le-links" name="links" rows="3" maxlength="6000" style="min-height:70px">${esc(cur.links.map(l => `${l.title} | ${l.url}`).join('\n'))}</textarea></div>
+          ${cur.files.length ? `<div><label>Ekli dosyalar (işareti kaldırırsan silinir)</label>${cur.files.map(f => `<label class="check"><input type="checkbox" name="keepFile" value="${esc(f.url)}" data-name="${esc(f.name)}" checked> ${esc(f.name)}</label>`).join('')}</div>` : ''}
+          <div><label for="le-files">Dosya ekle</label><input id="le-files" type="file" name="files" multiple accept=".pdf,.zip,.docx,.xlsx,.pptx,.txt,.csv"></div>
           <div class="row" style="flex-wrap:wrap"><button class="btn primary">Kaydet</button><button type="button" class="btn danger" data-act="delLesson" data-id="${cur.id}" data-course="${course.id}">Dersi sil</button></div></form></details>` : ''}
       <div class="row" style="flex-wrap:wrap;border-top:1px solid var(--line);padding-top:14px">
         <button class="btn ${cur.done ? '' : 'primary'}" data-act="complete" data-id="${cur.id}" data-next="${!cur.done && next ? href(next) : ''}">${cur.done ? '✓ Tamamlandı (geri al)' : 'Tamamlandı olarak işaretle'}</button>
@@ -1022,7 +1129,7 @@ function adminPricing(A) {
         <li><b>Aylık</b> üyelikte onay 30 gün erişim açar. Süre dolunca üye içerikleri göremez; yeniden ödeyip yenileme isteği gönderir ya da sen süreyi elle uzatırsın.</li>
         <li><b>Tek seferlik</b> üyelikte onay süresiz erişim açar.</li>
       </ol>
-      <p class="small muted">Kartla otomatik tahsilat henüz yok; ödemeler senin hesabına doğrudan yapılır. Şu an ${A.stats.paying} aktif süreli üyen var.</p></div>`;
+      <p class="small muted">Kartla otomatik tahsilat henüz yok; ödemeler senin hesabına doğrudan yapılır ve bu dönemde Okul hizmet payı almaz. Şu an ${A.stats.paying} aktif süreli üyen var. <a href="#/pricing" style="color:var(--accent);font-weight:600">Fiyatlandırma →</a></p></div>`;
 }
 function adminMembers(A) {
   const owner = S.user.id === A.owner_id;
@@ -1155,6 +1262,7 @@ const forms = {
   async register(d) { await api('/auth/register', 'POST', d); await refreshMe(); toast('Hoş geldin!'); go(afterAuth()); },
   async newCommunity(d) { const r = await api('/communities', 'POST', d); await refreshMe(); toast('Topluluğun hazır'); go('#/c/' + r.slug); },
   async profile(d) { await api('/me', 'PUT', { name: d.name, title: d.title, bio: d.bio, link: d.link }); await refreshMe(); toast('Bilgilerin kaydedildi'); route(); },
+  async email(d, form) { await api('/me/email', 'PUT', d); await refreshMe(); $('input[name=password]', form).value = ''; toast('E-posta adresin güncellendi'); },
   async password(d, form) {
     if (d.next !== d.again) throw new Error('Yeni şifreler birbiriyle aynı değil');
     await api('/me/password', 'PUT', { current: d.current, next: d.next }); form.reset(); toast('Şifren güncellendi');
@@ -1177,8 +1285,8 @@ const forms = {
   async comment(d, form) { await api(`/posts/${form.dataset.post}/comments`, 'POST', { body: d.body, parentId: S.replyTo }); route(); },
   async course(d) { const r = await api(slugPath() + '/courses', 'POST', d); go(`#/c/${C.community.slug}/classroom/${r.id}`); },
   async lesson(d, form) {
-    const image = await upload(d.image), f = await uploadFile(d.file), videoFile = await uploadVideo(d.videoFile, form);
-    const r = await api(`/courses/${form.dataset.course}/lessons`, 'POST', { module: d.module, title: d.title, video: d.video, content: d.content, file: f.url, fileName: f.name, image, videoFile }); go(`#/c/${C.community.slug}/classroom/${form.dataset.course}/${r.id}`); },
+    const image = await upload(d.image), files = await uploadFiles(form), videoFile = await uploadVideo(d.videoFile, form);
+    const r = await api(`/courses/${form.dataset.course}/lessons`, 'POST', { module: d.module, title: d.title, video: d.video, content: d.content, links: d.links, files, image, videoFile }); go(`#/c/${C.community.slug}/classroom/${form.dataset.course}/${r.id}`); },
   async event(d) {
     const startsAt = new Date(d.when).getTime();
     await api(slugPath() + '/events', 'POST', { ...d, startsAt });
@@ -1192,7 +1300,8 @@ const forms = {
   },
   async courseEdit(d, form) { await api('/courses/' + form.dataset.id, 'PUT', d); toast('Kurs güncellendi'); route(); },
   async lessonEdit(d, form) {
-    const body = { module: d.module, title: d.title, video: d.video, content: d.content };
+    const kept = [...form.querySelectorAll('input[name=keepFile]:checked')].map(i => ({ url: i.value, name: i.dataset.name }));
+    const body = { module: d.module, title: d.title, video: d.video, content: d.content, links: d.links, files: [...kept, ...await uploadFiles(form)] };
     if (d.image?.size) body.image = await upload(d.image); else if (d.removeImage) body.image = '';
     if (d.videoFile?.size) body.videoFile = await uploadVideo(d.videoFile, form); else if (d.removeVideo) body.videoFile = '';
     await api('/lessons/' + form.dataset.id, 'PUT', body); toast('Ders güncellendi'); route();
@@ -1243,6 +1352,7 @@ document.addEventListener('change', async ev => {
 });
 document.addEventListener('input', ev => {
   const f = ev.target.form?.dataset.form, set = (id, v) => { const el = $(id); if (el) el.textContent = v; };
+  if (ev.target.dataset?.calc !== undefined) { const o = $('#calcOut'); if (o) o.innerHTML = calcOut(Number($('#pc-n').value) || 0, Number($('#pc-p').value) || 0); return; }
   if (f === 'profile') {
     const d = Object.fromEntries(new FormData(ev.target.form));
     set('#pvName', d.name || 'Ad Soyad'); set('#pvTitle', d.title); set('#pvBio', d.bio); set('#bioCount', `${d.bio.length}/300`);
@@ -1252,7 +1362,13 @@ document.addEventListener('input', ev => {
     set('#nvPrice', d.priceType === 'free' || !d.priceAmount ? 'Ücretsiz' : `₺${d.priceAmount}${d.priceType === 'monthly' ? ' / ay' : ' tek seferlik'}`);
   }
 });
-document.addEventListener('change', ev => {
+document.addEventListener('change', async ev => {
+  if (ev.target.dataset?.pref) { // bildirim ve gizlilik anahtarları anında kaydedilir
+    const prefs = { ...S.user.prefs, [ev.target.dataset.pref]: ev.target.checked ? 1 : 0 };
+    try { S.user.prefs = (await api('/me/prefs', 'PUT', prefs)).prefs; toast('Kaydedildi'); }
+    catch (err) { ev.target.checked = !ev.target.checked; toast(err.message); }
+    return;
+  }
   if (ev.target.dataset?.showpw !== undefined) ev.target.form.querySelectorAll('input[name=password], input[name=again]').forEach(i => { i.type = ev.target.checked ? 'text' : 'password'; });
   if (ev.target.name === 'theme') { setTheme(ev.target.value); toast('Tema: ' + THEMES.find(x => x[0] === ev.target.value)[2]); }
   if (ev.target.dataset.change === 'feedSort') { S.feed.sort = ev.target.value; S.feed.limit = 20; route(); }

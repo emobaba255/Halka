@@ -120,9 +120,46 @@ function slugify(name) {
   const map = { ç: 'c', ğ: 'g', ı: 'i', ö: 'o', ş: 's', ü: 'u' };
   return name.toLocaleLowerCase('tr').replace(/[çğıöşü]/g, c => map[c]).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'topluluk';
 }
-function notify(userId, actorId, type, postId, communityId) {
-  if (userId !== actorId) run('INSERT INTO notifications(user_id,actor_id,type,post_id,community_id,created_at) VALUES(?,?,?,?,?,?)', userId, actorId, type, postId, communityId, now());
+// Kullanıcı tercihleri: bildirim grupları ve özel mesaj alma (varsayılan: hepsi açık)
+const PREF_KEYS = ['likes', 'comments', 'live', 'membership', 'messages'];
+function prefsOf(raw) {
+  let p = {};
+  try { p = raw ? JSON.parse(raw) : {}; } catch { /* bozuk kayıt: varsayılanlar */ }
+  return Object.fromEntries(PREF_KEYS.map(k => [k, p[k] === 0 ? 0 : 1]));
 }
+const userPrefs = id => prefsOf(one('SELECT prefs FROM users WHERE id=?', id)?.prefs);
+const NOTIFY_GROUP = { like_post: 'likes', like_comment: 'likes', comment: 'comments', reply: 'comments', live: 'live', request: 'membership', approved: 'membership' };
+function notify(userId, actorId, type, postId, communityId) {
+  if (userId === actorId) return;
+  const group = NOTIFY_GROUP[type];
+  if (group && !userPrefs(userId)[group]) return; // kullanıcı bu tür bildirimi kapatmış
+  run('INSERT INTO notifications(user_id,actor_id,type,post_id,community_id,created_at) VALUES(?,?,?,?,?,?)', userId, actorId, type, postId, communityId, now());
+}
+// Ders kaynakları: bağlantılar (her satır "Başlık | adres" ya da yalnızca adres) ve dosyalar
+function parseLinks(v) {
+  const out = [];
+  for (const raw of String(v ?? '').split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (out.length >= 20) fail(400, 'Bir derse en fazla 20 bağlantı eklenebilir');
+    const i = line.lastIndexOf('|');
+    const title = i > -1 ? line.slice(0, i).trim() : '';
+    let url = (i > -1 ? line.slice(i + 1) : line).trim(), u = null;
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    try { u = new URL(url); } catch { /* aşağıda reddedilir */ }
+    if (!u || !/^https?:$/.test(u.protocol) || !u.hostname.includes('.') || url.length > 500) fail(400, `Bağlantı geçersiz: ${line.slice(0, 60)}`);
+    out.push({ title: (title || u.hostname.replace(/^www\./, '')).slice(0, 80), url: u.href });
+  }
+  return out;
+}
+function parseFiles(v) {
+  if (!Array.isArray(v)) return [];
+  if (v.length > 10) fail(400, 'Bir derse en fazla 10 dosya eklenebilir');
+  return v.map(f => ({ url: fileUrl(f?.url), name: optText(f?.name, 'Dosya adı', 120) || 'dosya' })).filter(f => f.url);
+}
+const lessonFiles = l => [...(l.file ? [{ url: l.file, name: l.file_name }] : []), ...(l.files ? JSON.parse(l.files) : [])];
+const lessonOut = ({ file, file_name, ...l }) => ({ ...l, files: lessonFiles({ file, file_name, files: l.files }), links: l.links ? JSON.parse(l.links) : [] });
+const removeLessonUploads = l => { lessonFiles(l).forEach(f => removeUpload(f.url)); removeUpload(l.image); removeUpload(l.video_file); };
 
 // ---------- Oturum ----------
 const SESSION_MS = 30 * 864e5; // oturumlar 30 gün geçerli
@@ -130,7 +167,7 @@ const sweepSessions = () => { run('DELETE FROM sessions WHERE created_at<?', now
 sweepSessions(); setInterval(sweepSessions, 6 * 3600e3).unref();
 app.use((req, res, next) => {
   const m = /(?:^|;\s*)sid=([a-f0-9]{48})/.exec(req.headers.cookie || '');
-  req.user = m ? one('SELECT u.id,u.name,u.email,u.bio,u.color,u.avatar,u.title,u.link FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND s.created_at>?', m[1], now() - SESSION_MS) || null : null;
+  req.user = m ? one('SELECT u.id,u.name,u.email,u.bio,u.color,u.avatar,u.title,u.link,u.prefs FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND s.created_at>?', m[1], now() - SESSION_MS) || null : null;
   req.sid = m ? m[1] : null;
   next();
 });
@@ -207,7 +244,7 @@ const hasDemo = () => !!one("SELECT 1 FROM users WHERE email='demo@okul.app'");
 app.get('/api/me', (req, res) => {
   if (!req.user) return res.json({ user: null, communities: [], unread: 0, demo: hasDemo() });
   res.json({
-    user: req.user,
+    user: { ...req.user, prefs: prefsOf(req.user.prefs) },
     communities: all('SELECT c.slug,c.name,c.emoji,c.color FROM memberships m JOIN communities c ON c.id=m.community_id WHERE m.user_id=? ORDER BY m.joined_at', req.user.id),
     unread: one('SELECT COUNT(*) n FROM notifications WHERE user_id=? AND is_read=0', req.user.id).n,
     unreadMessages: one('SELECT COUNT(*) n FROM messages WHERE to_id=? AND is_read=0', req.user.id).n,
@@ -223,6 +260,22 @@ app.put('/api/me', auth, (req, res) => {
     if (!ok) fail(400, 'Geçerli bir bağlantı gir (örn. ornek.com)');
   }
   run('UPDATE users SET name=?, title=?, bio=?, link=? WHERE id=?', text(req.body.name, 'Ad', 60, 2), optText(req.body.title, 'Unvan', 60), optText(req.body.bio, 'Hakkında', 300), link, req.user.id);
+  res.json({ ok: true });
+});
+app.put('/api/me/prefs', auth, (req, res) => {
+  const p = Object.fromEntries(PREF_KEYS.map(k => [k, req.body[k] === false || req.body[k] === 0 ? 0 : 1]));
+  run('UPDATE users SET prefs=? WHERE id=?', JSON.stringify(p), req.user.id);
+  res.json({ prefs: p });
+});
+app.put('/api/me/email', auth, (req, res) => {
+  tooMany(req);
+  const u = one('SELECT pass FROM users WHERE id=?', req.user.id);
+  if (!checkPassword(String(req.body.password || ''), u.pass)) { strike(req); fail(400, 'Şifre hatalı'); }
+  const email = text(req.body.email, 'E-posta', 120, 5).toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail(400, 'Geçerli bir e-posta gir');
+  if (one('SELECT 1 FROM users WHERE email=? AND id<>?', email, req.user.id)) fail(409, 'Bu e-posta başka bir hesapta kayıtlı');
+  run('UPDATE users SET email=? WHERE id=?', email, req.user.id);
+  run('DELETE FROM resets WHERE user_id=?', req.user.id);
   res.json({ ok: true });
 });
 app.put('/api/me/avatar', auth, (req, res) => {
@@ -327,6 +380,7 @@ app.post('/api/messages/:userId', auth, messageLimit, (req, res) => {
   const other = one('SELECT id FROM users WHERE id=?', Number(req.params.userId));
   if (!other) fail(404, 'Kullanıcı bulunamadı');
   if (!canMessage(req.user.id, other.id)) fail(403, 'Yalnızca ortak topluluğun olan kişilere mesaj gönderebilirsin');
+  if (!userPrefs(other.id).messages) fail(403, 'Bu kullanıcı özel mesaj almıyor');
   run('INSERT INTO messages(from_id,to_id,body,created_at) VALUES(?,?,?,?)', req.user.id, other.id, text(req.body.body, 'Mesaj', 4000), now());
   res.json({ ok: true });
 });
@@ -412,7 +466,7 @@ app.put('/api/communities/:slug', auth, loadCommunity, admin, (req, res) => {
 app.delete('/api/communities/:slug', auth, loadCommunity, (req, res) => {
   if (req.user.id !== req.c.owner_id) fail(403, 'Topluluğu yalnızca kurucusu silebilir');
   for (const p of all("SELECT image, file FROM posts WHERE community_id=? AND (image<>'' OR file<>'')", req.c.id)) { removeUpload(p.image); removeUpload(p.file); }
-  for (const l of all('SELECT l.file, l.image, l.video_file FROM lessons l JOIN courses k ON k.id=l.course_id WHERE k.community_id=?', req.c.id)) { removeUpload(l.file); removeUpload(l.image); removeUpload(l.video_file); }
+  all('SELECT l.* FROM lessons l JOIN courses k ON k.id=l.course_id WHERE k.community_id=?', req.c.id).forEach(removeLessonUploads);
   removeUpload(req.c.cover); removeUpload(req.c.emoji);
   run('DELETE FROM likes WHERE community_id=?', req.c.id);
   run('DELETE FROM notifications WHERE community_id=?', req.c.id);
@@ -619,9 +673,9 @@ app.get('/api/courses/:id', auth, loadCourse, member, (req, res) => {
     fail(403, `Bu kurs Seviye ${req.course.min_level} ve üzeri üyelere açık. Gönderi ve yorumlarına beğeni topladıkça seviyen yükselir.`);
   res.json({
     course: { id, title, description, emoji, min_level },
-    lessons: all(`SELECT l.id,l.module,l.title,l.content,l.video,l.file,l.file_name,l.image,l.video_file,
+    lessons: all(`SELECT l.id,l.module,l.title,l.content,l.video,l.file,l.file_name,l.files,l.links,l.image,l.video_file,
       EXISTS(SELECT 1 FROM progress p WHERE p.lesson_id=l.id AND p.user_id=?) done
-      FROM lessons l WHERE l.course_id=? ORDER BY l.position, l.id`, req.user.id, id),
+      FROM lessons l WHERE l.course_id=? ORDER BY l.position, l.id`, req.user.id, id).map(lessonOut),
   });
 });
 app.put('/api/courses/:id', auth, loadCourse, admin, (req, res) => {
@@ -647,16 +701,20 @@ app.put('/api/lessons/:id', auth, loadLesson, admin, (req, res) => {
   const videoFile = req.body.videoFile === undefined ? req.lesson.video_file : vidUrl(req.body.videoFile);
   if (image !== req.lesson.image) removeUpload(req.lesson.image);
   if (videoFile !== req.lesson.video_file) removeUpload(req.lesson.video_file);
-  run('UPDATE lessons SET module=?, title=?, content=?, video=?, image=?, video_file=? WHERE id=?', text(req.body.module, 'Bölüm', 60), text(req.body.title, 'Ders adı', 100, 2), optText(req.body.content, 'İçerik', 10000), vid, image, videoFile, req.lesson.id);
+  // Bağlantı ve dosya listeleri de yalnızca gönderildiyse değişir; listeden çıkarılan dosyalar silinir
+  const links = req.body.links === undefined ? req.lesson.links : JSON.stringify(parseLinks(req.body.links));
+  const oldFiles = lessonFiles(req.lesson), files = req.body.files === undefined ? oldFiles : parseFiles(req.body.files);
+  oldFiles.filter(o => !files.some(f => f.url === o.url)).forEach(o => removeUpload(o.url));
+  run("UPDATE lessons SET module=?, title=?, content=?, video=?, image=?, video_file=?, links=?, files=?, file='', file_name='' WHERE id=?", text(req.body.module, 'Bölüm', 60), text(req.body.title, 'Ders adı', 100, 2), optText(req.body.content, 'İçerik', 10000), vid, image, videoFile, links, JSON.stringify(files), req.lesson.id);
   res.json({ ok: true });
 });
 app.delete('/api/lessons/:id', auth, loadLesson, admin, (req, res) => {
-  removeUpload(req.lesson.file); removeUpload(req.lesson.image); removeUpload(req.lesson.video_file);
+  removeLessonUploads(req.lesson);
   run('DELETE FROM lessons WHERE id=?', req.lesson.id);
   res.json({ ok: true });
 });
 app.delete('/api/courses/:id', auth, loadCourse, admin, (req, res) => {
-  for (const l of all('SELECT file, image, video_file FROM lessons WHERE course_id=?', req.course.id)) { removeUpload(l.file); removeUpload(l.image); removeUpload(l.video_file); }
+  all('SELECT * FROM lessons WHERE course_id=?', req.course.id).forEach(removeLessonUploads);
   run('DELETE FROM courses WHERE id=?', req.course.id);
   res.json({ ok: true });
 });
@@ -665,10 +723,9 @@ app.post('/api/courses/:id/lessons', auth, loadCourse, admin, (req, res) => {
   const vid = url ? /(?:youtu\.be\/|[?&]v=|embed\/|shorts\/)([\w-]{11})/.exec(url)?.[1] : '';
   if (url && !vid) fail(400, 'Yalnızca YouTube bağlantıları destekleniyor');
   const pos = one('SELECT COALESCE(MAX(position),0)+1 n FROM lessons WHERE course_id=?', req.course.id).n;
-  const file = fileUrl(req.body.file);
-  const id = Number(run('INSERT INTO lessons(course_id,module,title,content,video,file,file_name,image,video_file,position) VALUES(?,?,?,?,?,?,?,?,?,?)',
+  const id = Number(run('INSERT INTO lessons(course_id,module,title,content,video,links,files,image,video_file,position) VALUES(?,?,?,?,?,?,?,?,?,?)',
     req.course.id, text(req.body.module, 'Bölüm', 60), text(req.body.title, 'Ders adı', 100, 2), optText(req.body.content, 'İçerik', 10000), vid,
-    file, file ? optText(req.body.fileName, 'Dosya adı', 120) || 'dosya' : '', img(req.body.image), vidUrl(req.body.videoFile), pos).lastInsertRowid);
+    JSON.stringify(parseLinks(req.body.links)), JSON.stringify(parseFiles(req.body.files)), img(req.body.image), vidUrl(req.body.videoFile), pos).lastInsertRowid);
   res.json({ id });
 });
 app.post('/api/lessons/:id/complete', auth, (req, res) => {
@@ -739,7 +796,7 @@ app.get('/api/users/:id', auth, (req, res) => {
   // Yalnızca görüntüleyenin de üyesi olduğu toplulukların gönderileri
   const posts = all(`SELECT p.id,p.title,p.created_at,c.slug,c.name community FROM posts p JOIN communities c ON c.id=p.community_id
     WHERE p.user_id=? AND p.community_id IN (SELECT community_id FROM memberships WHERE user_id=?) ORDER BY p.created_at DESC LIMIT 15`, u.id, req.user.id);
-  res.json({ user: u, communities: communities.map(({ id, ...c }) => c), posts, canMessage: canMessage(req.user.id, u.id) });
+  res.json({ user: u, communities: communities.map(({ id, ...c }) => c), posts, canMessage: canMessage(req.user.id, u.id) && !!userPrefs(u.id).messages });
 });
 
 // ---------- Yönetim paneli ----------

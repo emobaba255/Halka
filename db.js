@@ -86,6 +86,9 @@ addColumn('users', 'link', "TEXT DEFAULT ''");
 addColumn('communities', 'rules', "TEXT DEFAULT ''");
 addColumn('lessons', 'image', "TEXT DEFAULT ''");
 addColumn('lessons', 'video_file', "TEXT DEFAULT ''");
+addColumn('lessons', 'links', "TEXT DEFAULT ''");
+addColumn('lessons', 'files', "TEXT DEFAULT ''");
+addColumn('users', 'prefs', "TEXT DEFAULT ''");
 
 // Marka renkleri: lacivert, mavi, altın. Profil ve topluluk renkleri yalnızca bunlardan seçilir.
 const COLORS = ['#0f2747', '#1f5fd6', '#9a7016'];
@@ -221,6 +224,7 @@ function seed() {
     lesson(k1, '3. Stil', 'Renk paleti oluşturmak', 'Bir nötr ölçek, bir vurgu rengi ve durum renkleri (başarı, uyarı, hata) çoğu ürün için yeterlidir.\n\nVurgu rengini az kullan: ne kadar az kullanırsan o kadar güçlü olur.', 5),
     lesson(k1, '3. Stil', 'Tipografi ölçeği', 'Az sayıda yazı boyutu seç ve onlara sadık kal: 13, 15, 18, 24, 32.\n\nSatır uzunluğunu 60–75 karakter arasında tut; satır yüksekliğini gövde metninde 1.5 civarında bırak.', 6),
   ];
+  db.prepare('UPDATE lessons SET links=? WHERE id=?').run(JSON.stringify([{ title: 'Renk kontrastı denetleyici', url: 'https://webaim.org/resources/contrastchecker/' }, { title: 'Boşluk ölçeği üzerine yazı', url: 'https://example.com/bosluk-olcegi' }]), L[2]);
   const k2 = course(c1, 'Portfolyo Hazırlama', 'İşlerini hikâyeleştirerek sunmanın yolları.', 'i:briefcase:navy');
   db.prepare('UPDATE courses SET min_level=3 WHERE id=?').run(k2);
   lesson(k2, 'Giriş', 'Hangi işleri seçmeli?', 'Az ama derin: üç iyi anlatılmış proje, on yüzeysel projeden iyidir.', 1);
