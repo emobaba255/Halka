@@ -352,7 +352,7 @@ function viewTeach() {
       <h1>Bildiğini öğret,<br>topluluğunu büyüt</h1>
       <p class="muted">Kurslarını, öğrencilerini ve canlı derslerini tek bir yerden yönet. Kurulumu birkaç dakika sürer.</p>
       <div class="row cta"><button class="btn primary lg" data-act="teachStart">Topluluğunu kur</button><a class="btn lg" href="#/pricing">Fiyatlandırma</a></div>
-      <p class="small muted" style="margin-top:12px">Aylık ücret yok. Ücretsiz topluluklar her zaman ücretsiz.</p>
+      <p class="small muted" style="margin-top:12px">Eğitim satanlara aylık ücret yok; yalnızca satıştan pay alınır.</p>
     </div></section>
     <div class="wrap stack" style="padding-bottom:20px">
       <div class="tgrid">
@@ -408,7 +408,7 @@ function viewNew() {
         <div><label for="n-desc">Açıklama</label><textarea id="n-desc" name="description" maxlength="3000" rows="5" placeholder="Kimler için? Neler öğrenilecek? Nasıl ilerlenecek?"></textarea></div>
         <div><label>Kimler katılabilir?</label>${visPicker('open')}</div>
         <div class="row" style="align-items:flex-end"><div class="grow"><label for="n-ptype">Üyelik türü</label><select id="n-ptype" name="priceType"><option value="free">Ücretsiz</option><option value="monthly">Aylık ücretli</option><option value="once">Tek seferlik ücretli</option></select></div>
-          <div style="width:130px"><label for="n-price">Ücret ($)</label><input id="n-price" type="number" name="priceAmount" min="5" max="100000" step="1" placeholder="20"></div></div>
+          <div style="width:130px"><label for="n-price">Ücret (₺)</label><input id="n-price" type="number" name="priceAmount" min="250" max="1000000" step="1" placeholder="300"></div></div>
         <div><label for="n-pay">Ödeme bilgisi (istek gönderenlere gösterilir)</label><textarea id="n-pay" name="payInfo" maxlength="1000" rows="2" placeholder="IBAN, ödeme bağlantısı ya da talimatlar"></textarea></div>
         <button class="btn primary lg">Topluluğu kur</button>
       </form></div>
@@ -512,63 +512,82 @@ function viewSettings(sec) {
 }
 
 // ---------- Fiyatlandırma ----------
-const FEE = 10; // ücretli üyelik satışlarından alınacak hizmet payı (%), ödeme işlem ücreti dahil
-const usd = n => '$' + (Math.round(n * 100) / 100).toLocaleString('tr-TR', { maximumFractionDigits: 2 });
-const MIN_PRICE = 5; // ücretli üyeliğin en düşük fiyatı ($)
+const FEE = 10;        // eğitim satan topluluklarda satıştan alınan hizmet payı (%), ödeme işlem ücreti dahil
+const MIN_PRICE = 250; // ücretli üyeliğin en düşük fiyatı (₺)
+const FREE_PLAN = 149; // üyelerinden ücret almayan toplulukların aylık plan ücreti (₺)
+const tl = n => '₺' + Math.round(n).toLocaleString('tr-TR');
 function viewPricing() {
   const li = t => `<li>${ic('check')}<span>${t}</span></li>`;
   const faq = (q, a) => `<details class="card faq"><summary>${q}</summary><p class="muted">${a}</p></details>`;
   return `<section class="teach-hero"><div class="wrap">
       <span class="tag gold">Fiyatlandırma</span>
-      <h1>Aylık ücret yok.<br>Sen kazanınca biz de kazanırız.</h1>
-      <p class="muted">Topluluk kurmak, kurs eklemek ve öğrenci almak ücretsiz. Yalnızca ücretli üyelik sattığında, satıştan küçük bir hizmet payı alırız.</p>
+      <h1>Eğitim satanlara aylık ücret yok.<br>Sen kazanınca biz de kazanırız.</h1>
+      <p class="muted">İki sade plan var: eğitim satıyorsan yalnızca satıştan pay alırız; topluluğun ücretsizse küçük bir aylık ücretle giderimizi karşılarız.</p>
     </div></section>
     <div class="wrap stack" style="padding-bottom:24px">
-      <div class="pricegrid">
+      <div class="pricegrid two">
         <div class="card plan">
-          <span class="tag">Tek plan</span>
-          <div class="price"><b>$0</b><span>/ ay</span></div>
-          <p class="muted">Kurulum ücreti, aylık ücret ya da taahhüt yok.</p>
+          <span class="tag gold">Eğitim satanlar için</span>
+          <h3>Ücretli topluluk</h3>
+          <div class="price"><b>₺0</b><span>/ ay</span></div>
+          <p class="muted">Üyelerinden aylık ya da tek seferlik ücret alıyorsan plan ücreti ödemezsin.</p>
           <ul class="checks">
-            ${li('Sınırsız üye, kurs ve ders')}${li('Topluluk akışı, anketler, özel mesajlar')}${li('Canlı yayın ve anlık sohbet')}${li('Yönetim paneli ve istatistikler')}
-            ${li('Açık, özel ya da gizli topluluk; davet bağlantısı')}${li('Kendi logon, kapak görselin ve kuralların')}${li(`Aylık ya da tek seferlik ücretli üyelik (en az $${MIN_PRICE})`)}
+            ${li(`Satıştan <b>%${FEE}</b> hizmet payı; ödeme işlem ücreti dahil, başka kesinti yok`)}
+            ${li(`Gelirinin %${100 - FEE}'i sende kalır`)}
+            ${li('Satış yapmadığın ay hiçbir şey ödemezsin')}
+            ${li(`Üyelik ücretini sen belirlersin (en az ${tl(MIN_PRICE)})`)}
           </ul>
-          <button class="btn primary lg block" data-act="teachStart">Ücretsiz başla</button>
+          <button class="btn primary lg block" data-act="teachStart">Topluluğunu kur</button>
         </div>
-        <div class="stack">
-          <div class="card stack"><h3>Ücretsiz topluluklar</h3><div class="price sm"><b>%0</b><span>kesinti</span></div><p class="small muted">Üyelerinden ücret almıyorsan Okul'a hiçbir şey ödemezsin. Süre ya da üye sınırı yok.</p></div>
-          <div class="card stack" style="border-color:var(--gold-bright)"><h3>Ücretli üyelikler</h3><div class="price sm"><b>%${FEE}</b><span>hizmet payı</span></div><p class="small muted">Yalnızca tahsil edilen üyelik ödemelerinden; ödeme işlem ücreti buna dahil, başka kesinti yok. Satış yoksa ödeme de yok; gelirinin %${100 - FEE}'i sende kalır.</p></div>
-          <div class="card notice small"><b>Tanıtım dönemi:</b> kartla ödeme altyapımız açılana kadar hizmet payı alınmıyor. Bu dönemde üyelik ödemeleri doğrudan eğitmenin hesabına yapılır ve tamamı eğitmende kalır.</div>
+        <div class="card plan plain">
+          <span class="tag">Ücretsiz eğitim verenler için</span>
+          <h3>Ücretsiz topluluk</h3>
+          <div class="price"><b>${tl(FREE_PLAN)}</b><span>/ ay</span></div>
+          <p class="muted">Üyelerinden ücret almıyorsan, barındırma giderini karşılayan sabit bir aylık ücret ödersin.</p>
+          <ul class="checks">
+            ${li('Hizmet payı ya da komisyon yok')}
+            ${li('Üyelerin için tamamen ücretsiz')}
+            ${li('Üye, kurs ve ders sayısında sınır yok')}
+            ${li('İstediğin zaman ücretli topluluğa geçebilirsin')}
+          </ul>
+          <button class="btn lg block" data-act="teachStart">Topluluğunu kur</button>
         </div>
       </div>
-      <div class="card stack calc"><h2>Ne kadar kazanırsın?</h2><p class="small muted">Üye sayını ve aylık ücretini yaz; hesap anında güncellenir.</p>
+      <div class="card notice small"><b>Tanıtım dönemi:</b> kartla ödeme altyapımız açılana kadar iki plan da ücretsiz. Bu dönemde hizmet payı ve aylık plan ücreti alınmıyor; üyelik ödemeleri doğrudan eğitmenin hesabına yapılıyor.</div>
+      <div class="card stack"><h3>İki planda da olanlar</h3>
+        <ul class="checks cols">
+          ${li('Sınırsız üye, kurs ve ders')}${li('Topluluk akışı, anketler, özel mesajlar')}${li('Canlı yayın ve anlık sohbet')}${li('Yönetim paneli ve istatistikler')}
+          ${li('Açık, özel ya da gizli topluluk; davet bağlantısı')}${li('Kendi logon, kapak görselin ve kuralların')}${li('Derslere video, dosya ve bağlantı ekleme')}${li('Seviye sistemi ve sıralama')}
+        </ul></div>
+      <div class="card stack calc"><h2>Eğitim satarsan ne kadar kazanırsın?</h2><p class="small muted">Üye sayını ve aylık ücretini yaz; hesap anında güncellenir.</p>
         <div class="row" style="flex-wrap:wrap;align-items:flex-end"><div class="grow" style="min-width:140px"><label for="pc-n">Ücretli üye sayısı</label><input id="pc-n" type="number" min="0" max="1000000" step="1" value="50" data-calc inputmode="numeric"></div>
-          <div class="grow" style="min-width:140px"><label for="pc-p">Aylık üyelik ücreti ($)</label><input id="pc-p" type="number" min="${MIN_PRICE}" max="100000" step="1" value="20" data-calc inputmode="numeric"></div></div>
-        <div class="statgrid" id="calcOut">${calcOut(50, 20)}</div>
-        <p class="small muted">Fiyatlar ABD doları olarak gösterilir. Ücretli üyelikler en az $${MIN_PRICE} olabilir. Kartla ödeme açıldığında tahsilat, ödeme günündeki kurla Türk lirası olarak yapılacak.</p></div>
+          <div class="grow" style="min-width:140px"><label for="pc-p">Aylık üyelik ücreti (₺)</label><input id="pc-p" type="number" min="${MIN_PRICE}" max="1000000" step="1" value="300" data-calc inputmode="numeric"></div></div>
+        <div class="statgrid" id="calcOut">${calcOut(50, 300)}</div>
+        <p class="small muted">Hizmet payına kart ve ödeme işlem ücreti dahildir; ayrıca bir kesinti yapılmaz.</p></div>
       <div class="card stack"><h2>Neden bu model?</h2>
         <div class="cmp" role="table" aria-label="Karşılaştırma">
           <div role="row" class="cmp-head"><span role="columnheader"></span><span role="columnheader">Okul</span><span role="columnheader">Sabit aylık ücretli platformlar</span></div>
-          <div role="row"><span role="rowheader">Aylık ücret</span><b role="cell">Yok</b><span role="cell">Üyen olmasa da ödenir</span></div>
-          <div role="row"><span role="rowheader">İlk üyeyi beklerken</span><b role="cell">$0</b><span role="cell">İlk aydan itibaren masraf</span></div>
-          <div role="row"><span role="rowheader">Ücretsiz topluluk</span><b role="cell">Her zaman ücretsiz</b><span role="cell">Genellikle deneme süresiyle sınırlı</span></div>
-          <div role="row"><span role="rowheader">Ne zaman ödersin?</span><b role="cell">Yalnızca satış yaptığında</b><span role="cell">Her ay, satıştan bağımsız</span></div>
+          <div role="row"><span role="rowheader">Eğitim satanlar için aylık ücret</span><b role="cell">Yok</b><span role="cell">Var</span></div>
+          <div role="row"><span role="rowheader">Satış yapmadığın ay</span><b role="cell">₺0</b><span role="cell">Yine ödersin</span></div>
+          <div role="row"><span role="rowheader">Kesinti</span><b role="cell">Tek oran: %${FEE}, her şey dahil</b><span role="cell">Aylık ücrete ek işlem kesintisi</span></div>
+          <div role="row"><span role="rowheader">Ne zaman ödersin?</span><b role="cell">Yalnızca kazandığında</b><span role="cell">Her ay, kazançtan bağımsız</span></div>
         </div>
-        <p class="small muted">Yeni başlayan bir eğitmen için en büyük risk, henüz kazanmadan ödemeye başlamaktır. Okul'da bu risk yok: topluluğun büyüdükçe birlikte kazanırız.</p></div>
+        <p class="small muted">Yeni başlayan bir eğitmen için en büyük risk, henüz kazanmadan ödemeye başlamaktır. Okul'da eğitim satanlar için bu risk yok: topluluğun büyüdükçe birlikte kazanırız.</p></div>
       <div><h2>Sık sorulanlar</h2></div>
-      ${faq('Öğrenciler Okul\'a ücret öder mi?', 'Hayır. Öğrenci olmak, topluluklara katılmak ve ücretsiz kursları izlemek tamamen ücretsizdir. Ücretli bir topluluğa katılan öğrenci yalnızca eğitmenin belirlediği üyelik ücretini öder.')}
-      ${faq('Hizmet payı tam olarak neden alınır?', `Yalnızca ücretli üyelik ödemelerinden, %${FEE} oranında; kart ve ödeme işlem ücreti bu orana dahildir. Ücretsiz topluluklardan, kurs sayısından, üye sayısından ya da canlı yayınlardan ek ücret alınmaz.`)}
-      ${faq('Şu an bir şey ödeyecek miyim?', 'Hayır. Kartla ödeme altyapımız açılana kadar tanıtım dönemindeyiz: hizmet payı alınmıyor, üyelik ödemeleri doğrudan senin hesabına yapılıyor.')}
-      ${faq('Ücretsiz başlayıp sonra ücretliye geçebilir miyim?', 'Evet. Üyelik türünü yönetim panelinden istediğin zaman ücretsiz, aylık ya da tek seferlik olarak değiştirebilirsin.')}
-      ${faq('Fiyatlar neden dolar olarak yazıyor?', `Eğitmenler fiyatlarını ABD doları olarak belirler ve fiyatlar öyle gösterilir. Ödeme Türk lirası olarak, ödeme günündeki kurla alınır. Ücretli bir üyeliğin fiyatı en az $${MIN_PRICE} olabilir.`)}
+      ${faq('Öğrenciler Okul\'a ücret öder mi?', 'Hayır. Öğrenci olmak, topluluklara katılmak ve ücretsiz toplulukların kurslarını izlemek tamamen ücretsizdir. Ücretli bir topluluğa katılan öğrenci yalnızca eğitmenin belirlediği üyelik ücretini öder.')}
+      ${faq('Ücretsiz topluluk neden aylık ücretli?', `Her topluluğun barındırma, depolama ve bakım gideri var. Eğitim satan topluluklarda bu gideri satıştan aldığımız pay karşılar. Ücretsiz topluluklarda satış olmadığı için gideri ${tl(FREE_PLAN)} tutarındaki sabit aylık ücret karşılar; üyelerinden hiçbir şey alınmaz.`)}
+      ${faq('Hizmet payı tam olarak neden alınır?', `Yalnızca ücretli üyelik ödemelerinden, %${FEE} oranında; kart ve ödeme işlem ücreti bu orana dahildir. Kurs sayısından, üye sayısından ya da canlı yayınlardan ek ücret alınmaz.`)}
+      ${faq('En düşük üyelik ücreti neden ' + tl(MIN_PRICE) + '?', 'Çok küçük tutarlarda kart işlem ücreti ödemenin büyük kısmını götürür. Alt sınır, hem eğitmenin hem platformun her satıştan anlamlı bir pay almasını sağlar.')}
+      ${faq('Şu an bir şey ödeyecek miyim?', 'Hayır. Kartla ödeme altyapımız açılana kadar tanıtım dönemindeyiz: hizmet payı ve aylık plan ücreti alınmıyor, üyelik ödemeleri doğrudan senin hesabına yapılıyor.')}
+      ${faq('Planımı sonradan değiştirebilir miyim?', 'Evet. Üyelik türünü yönetim panelinden değiştirdiğinde planın da değişir: ücretli üyeliğe geçersen aylık plan ücreti biter ve yalnızca satıştan pay alınır; ücretsize dönersen tersi olur.')}
       ${faq('Taahhüt ya da iptal ücreti var mı?', 'Yok. Topluluğunu istediğin zaman kapatabilirsin.')}
-      <div style="text-align:center;padding:8px 0 16px"><button class="btn primary lg" data-act="teachStart">Topluluğunu ücretsiz kur</button></div>
+      <div style="text-align:center;padding:8px 0 16px"><button class="btn primary lg" data-act="teachStart">Topluluğunu kur</button></div>
     </div>`;
 }
 function calcOut(n, p) {
   const gross = Math.max(0, n) * Math.max(0, p), fee = gross * FEE / 100;
   const s = (v, l, sub) => `<div class="card stat"><b>${v}</b><span>${l}</span><small>${sub}</small></div>`;
-  return s(usd(gross), 'Aylık üyelik geliri', `${Math.max(0, n).toLocaleString('tr-TR')} üye × ${usd(Math.max(0, p))}`) + s(usd(gross - fee), 'Sana kalan', `Gelirin %${100 - FEE}'i`) + s(usd(fee), 'Okul hizmet payı', `%${FEE} · üye başına ${usd(Math.max(0, p) * FEE / 100)}`);
+  return s(tl(gross), 'Aylık üyelik geliri', `${Math.max(0, n).toLocaleString('tr-TR')} üye × ${tl(Math.max(0, p))}`) + s(tl(gross - fee), 'Sana kalan', `Gelirin %${100 - FEE}'i`) + s(tl(fee), 'Okul hizmet payı', `%${FEE} · üye başına ${tl(Math.max(0, p) * FEE / 100)}`);
 }
 
 // ---------- Fotoğraf kırpma ----------
@@ -1081,7 +1100,7 @@ function adminOverview(A) {
       ${stat(s.members, 'Toplam üye', `Son 7 günde +${s.new7} · 30 günde +${s.new30}`)}
       ${stat(A.requests.length, 'Bekleyen istek', A.requests.length ? `<a href="#/c/${esc(c.slug)}/admin/members" style="color:var(--accent);font-weight:600">İncele →</a>` : 'Bekleyen yok')}
       ${stat(s.posts7, 'Gönderi (7 gün)', `${s.comments7} yorum · ${s.likes7} beğeni`)}
-      ${c.price_type === 'monthly' ? stat('$' + s.revenue.toLocaleString('tr-TR'), 'Tahmini aylık gelir', `${s.paying} aktif ücretli üye × $${c.price_amount}`) : stat(c.price_text ? esc(c.price_text) : 'Ücretsiz', 'Üyelik türü', `<a href="#/c/${esc(c.slug)}/admin/pricing" style="color:var(--accent);font-weight:600">Değiştir →</a>`)}
+      ${c.price_type === 'monthly' ? stat(tl(s.revenue), 'Tahmini aylık gelir', `${s.paying} aktif ücretli üye × ${tl(c.price_amount)}`) : stat(c.price_text ? esc(c.price_text) : 'Ücretsiz', 'Üyelik türü', `<a href="#/c/${esc(c.slug)}/admin/pricing" style="color:var(--accent);font-weight:600">Değiştir →</a>`)}
     </div>
     <div class="card stack"><h3>Davet bağlantısı</h3>
       <p class="small muted">Bu bağlantıyla gelenler onay ve ödeme beklemeden doğrudan üye olur. Bağlantıyı yenilersen eskisi çalışmaz.</p>
@@ -1120,7 +1139,7 @@ function adminPricing(A) {
   const opt = (v, l) => `<option value="${v}" ${c.price_type === v ? 'selected' : ''}>${l}</option>`;
   return `<form class="card stack" data-form="adminPricing"><h3>Üyelik ve ücret</h3>
       <div><label for="pr-type">Üyelik türü</label><select id="pr-type" name="priceType">${opt('free', 'Ücretsiz')}${opt('monthly', 'Aylık ücretli (her ay yenilenir)')}${opt('once', 'Tek seferlik ücretli (ömür boyu erişim)')}</select></div>
-      <div><label for="pr-amount">Ücret ($, en az ${MIN_PRICE})</label><input id="pr-amount" type="number" name="priceAmount" min="${MIN_PRICE}" max="100000" step="1" value="${c.price_amount || ''}" placeholder="Örn. 200"></div>
+      <div><label for="pr-amount">Ücret (₺, en az ${MIN_PRICE})</label><input id="pr-amount" type="number" name="priceAmount" min="${MIN_PRICE}" max="1000000" step="1" value="${c.price_amount || ''}" placeholder="Örn. 200"></div>
       <div><label for="pr-pay">Ödeme bilgisi (istek gönderenlere gösterilir)</label><textarea id="pr-pay" name="payInfo" maxlength="1000" rows="4" placeholder="IBAN, alıcı adı, ödeme bağlantısı ya da talimatlar">${esc(c.pay_info)}</textarea></div>
       <div><button class="btn primary">Kaydet</button></div>
     </form>
@@ -1131,6 +1150,7 @@ function adminPricing(A) {
         <li><b>Aylık</b> üyelikte onay 30 gün erişim açar. Süre dolunca üye içerikleri göremez; yeniden ödeyip yenileme isteği gönderir ya da sen süreyi elle uzatırsın.</li>
         <li><b>Tek seferlik</b> üyelikte onay süresiz erişim açar.</li>
       </ol>
+      <p class="small"><b>Planın:</b> ${c.price_type === 'free' ? `Ücretsiz topluluk — ${tl(FREE_PLAN)} / ay, komisyon yok.` : `Ücretli topluluk — aylık ücret yok, satışlardan %${FEE} hizmet payı.`} Tanıtım döneminde ikisi de alınmıyor.</p>
       <p class="small muted">Kartla otomatik tahsilat henüz yok; ödemeler senin hesabına doğrudan yapılır ve bu dönemde Okul hizmet payı almaz. Şu an ${A.stats.paying} aktif süreli üyen var. <a href="#/pricing" style="color:var(--accent);font-weight:600">Fiyatlandırma →</a></p></div>`;
 }
 function adminMembers(A) {
@@ -1361,7 +1381,7 @@ document.addEventListener('input', ev => {
   } else if (f === 'newCommunity') {
     const d = Object.fromEntries(new FormData(ev.target.form));
     { const t = $('#nvIcon'); if (t) t.innerHTML = cicon(d.emoji, 'onband'); } set('#nvName', d.name || 'Topluluk adı'); set('#nvTag', d.tagline || 'Kısa tanımın burada görünür'); set('#nvCat', d.category);
-    set('#nvPrice', d.priceType === 'free' || !d.priceAmount ? 'Ücretsiz' : `$${d.priceAmount}${d.priceType === 'monthly' ? ' / ay' : ' tek seferlik'}`);
+    set('#nvPrice', d.priceType === 'free' || !d.priceAmount ? 'Ücretsiz' : `₺${d.priceAmount}${d.priceType === 'monthly' ? ' / ay' : ' tek seferlik'}`);
   }
 });
 document.addEventListener('change', async ev => {

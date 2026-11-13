@@ -485,3 +485,11 @@ a.file > .ic:last-child { color: var(--muted); }
 .resources { grid-template-columns: minmax(0, 1fr); } /* uzun başlıklar satırı genişletmesin, kısaltılsın */
 .plan > .tag { justify-self: start; }
 #foot .row { flex-wrap: wrap; row-gap: 6px; }
+
+/* Fiyatlandırma: iki plan yan yana */
+.pricegrid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
+@media (max-width: 760px) { .pricegrid.two { grid-template-columns: minmax(0, 1fr); } }
+.plan { align-content: start; }
+.plan.plain { border: 1px solid var(--line); }
+.plan .btn { align-self: end; }
+.checks.cols { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }

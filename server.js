@@ -56,15 +56,14 @@ const newInvite = () => crypto.randomBytes(8).toString('hex');
 const TAB_KEYS = ['classroom', 'calendar', 'members', 'leaderboard'];
 const tabsOf = c => ({ classroom: 1, calendar: 1, members: 1, leaderboard: 1, ...(c.tabs ? JSON.parse(c.tabs) : {}) });
 // Ücret: ücretsiz, aylık ya da tek seferlik
-const MIN_PRICE = 5;
+const MIN_PRICE = 250; // ücretli üyeliğin en düşük fiyatı (₺); yaklaşık 5 ABD doları karşılığı
 function parsePrice(b) {
   const type = ['monthly', 'once'].includes(b.priceType) ? b.priceType : 'free';
   if (type === 'free') return { type, amount: 0, label: '' };
   const amount = parseInt(b.priceAmount, 10);
-  // Fiyatlar dolar olarak belirlenir ve gösterilir; ücretli üyelik en az MIN_PRICE dolar olabilir
-  if (!Number.isInteger(amount) || amount < MIN_PRICE) fail(400, `Ücretli üyelik en az $${MIN_PRICE} olmalı (tam sayı)`);
-  if (amount > 100000) fail(400, 'Ücret en fazla $100.000 olabilir');
-  return { type, amount, label: type === 'monthly' ? `$${amount} / ay` : `$${amount} tek seferlik` };
+  if (!Number.isInteger(amount) || amount < MIN_PRICE) fail(400, `Ücretli üyelik en az ₺${MIN_PRICE} olmalı (tam sayı)`);
+  if (amount > 1000000) fail(400, 'Ücret en fazla ₺1.000.000 olabilir');
+  return { type, amount, label: type === 'monthly' ? `₺${amount} / ay` : `₺${amount} tek seferlik` };
 }
 const ICON_RE = /^i:[a-z]{2,12}:(blue|navy|gold)$/;
 // Simge: hazır simge ("i:ad:renk"), yüklenmiş logo ya da (eski kayıtlar için) kısa bir emoji

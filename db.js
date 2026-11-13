@@ -141,7 +141,7 @@ function seed() {
     'Her sabah 06:30. Tempo fark etmez, önemli olan çıkmak.\n\nAntrenman planları, yarış takvimi ve bolca motivasyon.', 'Spor', 'i:activity:gold', COLORS[2], U[4], 1);
 
   db.exec("UPDATE communities SET invite_code=lower(hex(randomblob(8)))");
-  db.prepare("UPDATE communities SET price_type='monthly', price_amount=15, price_text=?, pay_info=? WHERE id=?").run('$15 / ay',
+  db.prepare("UPDATE communities SET price_type='monthly', price_amount=300, price_text=?, pay_info=? WHERE id=?").run('₺300 / ay',
     'Üyelik ücretini aşağıdaki hesaba gönderip açıklamaya adını yaz. Ödemen görülünce isteğin onaylanır.\n\nIBAN: TR00 0000 0000 0000 0000 0000 00 (örnek)\nAlıcı: Sabah Koşucuları', c3);
   const msg = (from, to, body, hoursAgo, read = 1) => ins('INSERT INTO messages(from_id,to_id,body,is_read,created_at) VALUES(?,?,?,?,?)', from, to, body, read, now - hoursAgo * H);
   msg(U[1], U[0], 'Merhaba Deniz, atölyeye hoş geldin! Takıldığın bir yer olursa yazabilirsin.', 30);
