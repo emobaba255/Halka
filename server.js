@@ -44,6 +44,15 @@ function parsePrice(b) {
   if (!Number.isInteger(amount) || amount < 1 || amount > 1000000) fail(400, 'Ücret 1 ile 1.000.000 ₺ arasında bir tam sayı olmalı');
   return { type, amount, label: type === 'monthly' ? `₺${amount} / ay` : `₺${amount} tek seferlik` };
 }
+const ICON_RE = /^i:[a-z]{2,12}:(blue|navy|gold)$/;
+// Simge: hazır simge ("i:ad:renk"), yüklenmiş logo ya da (eski kayıtlar için) kısa bir emoji
+function iconVal(v, fallback) {
+  const s = typeof v === 'string' ? v.trim() : '';
+  if (ICON_RE.test(s) || IMG_RE.test(s)) return s;
+  return [...s].slice(0, 2).join('') || fallback;
+}
+// Görünürlük: 0 herkese açık, 1 özel (onayla katılım), 2 gizli (keşfette görünmez)
+const visVal = v => (v === 'hidden' ? 2 : v === 'private' ? 1 : 0);
 const sha256 = s => crypto.createHash('sha256').update(s).digest('hex');
 function newPassword(v) {
   const p = typeof v === 'string' ? v : '';
@@ -279,7 +288,8 @@ app.get('/api/communities', (req, res) => {
       (SELECT COUNT(*) FROM memberships m WHERE m.community_id=c.id) members,
       (SELECT COUNT(*) FROM courses k WHERE k.community_id=c.id) courses
       FROM communities c WHERE (c.name LIKE ? OR c.tagline LIKE ? OR c.category LIKE ?) AND (?='' OR c.category=?)
-      ORDER BY members DESC, c.created_at DESC LIMIT 60`, q, q, q, cat, cat),
+        AND (c.is_private<2 OR EXISTS(SELECT 1 FROM memberships x WHERE x.community_id=c.id AND x.user_id=?))
+      ORDER BY members DESC, c.created_at DESC LIMIT 60`, q, q, q, cat, cat, req.user?.id ?? 0),
   });
 });
 app.post('/api/communities', auth, (req, res) => {
@@ -287,13 +297,13 @@ app.post('/api/communities', auth, (req, res) => {
   const tagline = optText(req.body.tagline, 'Kısa tanım', 100);
   const description = optText(req.body.description, 'Açıklama', 3000);
   const category = optText(req.body.category, 'Kategori', 30) || 'Genel';
-  const emoji = [...optText(req.body.emoji, 'Simge', 8)].slice(0, 2).join('') || '🎓';
+  const emoji = iconVal(req.body.emoji, 'i:cap:blue');
   const price = parsePrice(req.body);
   let slug = slugify(name), n = 1;
   while (one('SELECT 1 FROM communities WHERE slug=?', slug)) slug = `${slugify(name)}-${++n}`;
   const id = Number(run(`INSERT INTO communities(slug,name,tagline,description,category,is_private,price_type,price_amount,price_text,pay_info,invite_code,categories,owner_id,color,emoji,created_at)
     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    slug, name, tagline, description, category, req.body.isPrivate ? 1 : 0, price.type, price.amount, price.label, optText(req.body.payInfo, 'Ödeme bilgisi', 1000),
+    slug, name, tagline, description, category, visVal(req.body.visibility), price.type, price.amount, price.label, optText(req.body.payInfo, 'Ödeme bilgisi', 1000),
     newInvite(), JSON.stringify(DEFAULT_CATEGORIES), req.user.id, COLORS[crypto.randomInt(COLORS.length)], emoji, now()).lastInsertRowid);
   run('INSERT INTO memberships(user_id,community_id,role,joined_at) VALUES(?,?,?,?)', req.user.id, id, 'admin', now());
   res.json({ slug });
@@ -307,7 +317,7 @@ app.get('/api/communities/:slug', loadCommunity, (req, res) => {
   const myPoints = req.user ? pts.get(req.user.id) || 0 : 0;
   const pending = !!req.user && !req.role && !!one('SELECT 1 FROM join_requests WHERE user_id=? AND community_id=?', req.user.id, c.id);
   res.json({
-    community: { slug: c.slug, name: c.name, tagline: c.tagline, description: c.description, category: c.category, is_private: c.is_private, price_text: c.price_text, price_type: c.price_type, price_amount: c.price_amount, pay_info: req.role || pending || req.expired ? c.pay_info : '',
+    community: { slug: c.slug, name: c.name, tagline: c.tagline, description: c.description, category: c.category, is_private: c.is_private, rules: c.rules, price_text: c.price_text, price_type: c.price_type, price_amount: c.price_amount, pay_info: req.role || pending || req.expired ? c.pay_info : '',
       tabs: tabsOf(c), post_role: c.post_role, cover: c.cover, live: c.live_video ? { title: c.live_title, started: c.live_started } : null, color: c.color, emoji: c.emoji, created_at: c.created_at, categories: JSON.parse(c.categories) },
     role: req.role,
     pending, expired: req.expired, paid_until: req.role ? req.paidUntil : 0,
@@ -331,9 +341,22 @@ app.put('/api/communities/:slug', auth, loadCommunity, admin, (req, res) => {
   for (const k of TAB_KEYS) tabs[k] = b.tabs?.[k] ? 1 : 0;
   const cover = b.cover === undefined ? c.cover : img(b.cover);
   if (c.cover && c.cover !== cover) removeUpload(c.cover);
-  run('UPDATE communities SET name=?, tagline=?, description=?, category=?, emoji=?, is_private=?, categories=?, tabs=?, post_role=?, cover=? WHERE id=?',
-    text(b.name, 'Topluluk adı', 50, 3), optText(b.tagline, 'Kısa tanım', 100), optText(b.description, 'Açıklama', 3000), optText(b.category, 'Kategori', 30) || 'Genel',
-    [...optText(b.emoji, 'Simge', 8)].slice(0, 2).join('') || '🎓', b.isPrivate ? 1 : 0, JSON.stringify(cats), JSON.stringify(tabs), b.postRole === 'admin' ? 'admin' : 'member', cover, c.id);
+  const emoji = iconVal(b.emoji, 'i:cap:blue');
+  if (c.emoji !== emoji) removeUpload(c.emoji);
+  run('UPDATE communities SET name=?, tagline=?, description=?, rules=?, category=?, emoji=?, is_private=?, categories=?, tabs=?, post_role=?, cover=? WHERE id=?',
+    text(b.name, 'Topluluk adı', 50, 3), optText(b.tagline, 'Kısa tanım', 100), optText(b.description, 'Açıklama', 3000), optText(b.rules, 'Kurallar', 2000), optText(b.category, 'Kategori', 30) || 'Genel',
+    emoji, visVal(b.visibility), JSON.stringify(cats), JSON.stringify(tabs), b.postRole === 'admin' ? 'admin' : 'member', cover, c.id);
+  res.json({ ok: true });
+});
+// Topluluğu kalıcı olarak silme: yalnızca kurucu
+app.delete('/api/communities/:slug', auth, loadCommunity, (req, res) => {
+  if (req.user.id !== req.c.owner_id) fail(403, 'Topluluğu yalnızca kurucusu silebilir');
+  for (const p of all("SELECT image, file FROM posts WHERE community_id=? AND (image<>'' OR file<>'')", req.c.id)) { removeUpload(p.image); removeUpload(p.file); }
+  for (const l of all("SELECT l.file FROM lessons l JOIN courses k ON k.id=l.course_id WHERE k.community_id=? AND l.file<>''", req.c.id)) removeUpload(l.file);
+  removeUpload(req.c.cover); removeUpload(req.c.emoji);
+  run('DELETE FROM likes WHERE community_id=?', req.c.id);
+  run('DELETE FROM notifications WHERE community_id=?', req.c.id);
+  run('DELETE FROM communities WHERE id=?', req.c.id); // gönderi, kurs, üyelik vb. bağlı kayıtlar birlikte silinir
   res.json({ ok: true });
 });
 app.put('/api/communities/:slug/cover', auth, loadCommunity, admin, (req, res) => {
@@ -447,6 +470,13 @@ app.get('/api/posts/:id', auth, loadPost, member, (req, res) => {
     .map(c => ({ ...c, author_level: levelOf(pts.get(c.user_id) || 0) }));
   res.json({ post, comments, role: req.role });
 });
+app.put('/api/posts/:id', auth, loadPost, member, (req, res) => {
+  if (req.post.user_id !== req.user.id) fail(403, 'Yalnızca kendi gönderini düzenleyebilirsin');
+  const cats = JSON.parse(one('SELECT categories FROM communities WHERE id=?', req.post.community_id).categories);
+  run('UPDATE posts SET title=?, body=?, category=? WHERE id=?', text(req.body.title, 'Başlık', 140, 3), text(req.body.body, 'İçerik', 8000),
+    cats.includes(req.body.category) ? req.body.category : req.post.category, req.post.id);
+  res.json({ ok: true });
+});
 app.delete('/api/posts/:id', auth, loadPost, member, (req, res) => {
   if (req.post.user_id !== req.user.id && req.role !== 'admin') fail(403, 'Bu gönderiyi silemezsin');
   run("DELETE FROM likes WHERE target_type='comment' AND target_id IN (SELECT id FROM comments WHERE post_id=?)", req.post.id);
@@ -509,7 +539,7 @@ app.get('/api/communities/:slug/courses', auth, loadCommunity, member, (req, res
   });
 });
 app.post('/api/communities/:slug/courses', auth, loadCommunity, admin, (req, res) => {
-  const emoji = [...optText(req.body.emoji, 'Simge', 8)].slice(0, 2).join('') || '📘';
+  const emoji = iconVal(req.body.emoji, 'i:book:blue');
   const minLevel = Math.min(Math.max(parseInt(req.body.minLevel, 10) || 1, 1), LEVELS.length);
   const id = Number(run('INSERT INTO courses(community_id,title,description,emoji,min_level,created_at) VALUES(?,?,?,?,?,?)',
     req.c.id, text(req.body.title, 'Kurs adı', 80, 3), optText(req.body.description, 'Açıklama', 400), emoji, minLevel, now()).lastInsertRowid);
@@ -523,15 +553,41 @@ function loadCourse(req, res, next) {
   next();
 }
 app.get('/api/courses/:id', auth, loadCourse, member, (req, res) => {
-  const { id, title, description, emoji } = req.course;
+  const { id, title, description, emoji, min_level } = req.course;
   if (req.role !== 'admin' && levelOf(pointsMap(req.course.community_id).get(req.user.id) || 0) < req.course.min_level)
     fail(403, `Bu kurs Seviye ${req.course.min_level} ve üzeri üyelere açık. Gönderi ve yorumlarına beğeni topladıkça seviyen yükselir.`);
   res.json({
-    course: { id, title, description, emoji },
+    course: { id, title, description, emoji, min_level },
     lessons: all(`SELECT l.id,l.module,l.title,l.content,l.video,l.file,l.file_name,
       EXISTS(SELECT 1 FROM progress p WHERE p.lesson_id=l.id AND p.user_id=?) done
       FROM lessons l WHERE l.course_id=? ORDER BY l.position, l.id`, req.user.id, id),
   });
+});
+app.put('/api/courses/:id', auth, loadCourse, admin, (req, res) => {
+  const emoji = iconVal(req.body.emoji, 'i:book:blue');
+  if (req.course.emoji !== emoji) removeUpload(req.course.emoji);
+  run('UPDATE courses SET title=?, description=?, emoji=?, min_level=? WHERE id=?', text(req.body.title, 'Kurs adı', 80, 3), optText(req.body.description, 'Açıklama', 400),
+    emoji, Math.min(Math.max(parseInt(req.body.minLevel, 10) || 1, 1), LEVELS.length), req.course.id);
+  res.json({ ok: true });
+});
+// Ders düzenleme ve silme
+function loadLesson(req, res, next) {
+  const l = one('SELECT l.*, k.community_id FROM lessons l JOIN courses k ON k.id=l.course_id WHERE l.id=?', Number(req.params.id));
+  if (!l) return res.status(404).json({ error: 'Ders bulunamadı' });
+  req.lesson = l;
+  req.role = roleIn(req.user.id, l.community_id);
+  next();
+}
+app.put('/api/lessons/:id', auth, loadLesson, admin, (req, res) => {
+  const url = optText(req.body.video, 'Video bağlantısı', 200), vid = url ? ytId(url) : '';
+  if (url && !vid) fail(400, 'Yalnızca YouTube bağlantıları destekleniyor');
+  run('UPDATE lessons SET module=?, title=?, content=?, video=? WHERE id=?', text(req.body.module, 'Bölüm', 60), text(req.body.title, 'Ders adı', 100, 2), optText(req.body.content, 'İçerik', 10000), vid, req.lesson.id);
+  res.json({ ok: true });
+});
+app.delete('/api/lessons/:id', auth, loadLesson, admin, (req, res) => {
+  removeUpload(req.lesson.file);
+  run('DELETE FROM lessons WHERE id=?', req.lesson.id);
+  res.json({ ok: true });
 });
 app.delete('/api/courses/:id', auth, loadCourse, admin, (req, res) => {
   run('DELETE FROM courses WHERE id=?', req.course.id);

@@ -374,3 +374,32 @@ input[type=range] { accent-color: var(--accent); padding: 0; }
 .chead-row > .btn { margin-top: 12px; }
 .landing h1, .teach-hero h1 { text-wrap: balance; }
 @media (max-width: 600px) { .landing h1 br, .teach-hero h1 br { display: none; } }
+
+/* ===== Simge karoları, simge seçici, görünürlük kartları ===== */
+.cicon { overflow: hidden; }
+.cicon .ic { width: 56%; height: 56%; }
+.cicon.tile.blue { background: linear-gradient(135deg, #2f74ee, #1848b0); color: #fff; }
+.cicon.tile.navy { background: linear-gradient(135deg, #1d3f73, #0b1d38); color: #f2c14e; }
+.cicon.tile.gold { background: linear-gradient(135deg, #f5cd6a, #c9972b); color: #0f2747; }
+.cicon.img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cicon.xl { margin-top: 0; }
+.chead-row .cicon.xl { margin-top: -30px; border: 3px solid var(--surface); }
+@media (max-width: 600px) { .chead-row .cicon.xl { margin-top: -24px; } }
+.ccard .band .cicon { transform: translateY(18px); width: 50px; height: 50px; border-radius: 14px; border: 3px solid var(--surface); font-size: 25px; box-shadow: var(--shadow); }
+.ipick { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 12px; background: var(--bg); }
+.igrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 6px; }
+.ibtn { aspect-ratio: 1; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); cursor: pointer; display: grid; place-items: center; padding: 0; }
+.ibtn .ic { width: 20px; height: 20px; }
+.ibtn:hover { border-color: var(--accent); }
+.ibtn.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
+.swatch.blue { background: #1f5fd6; } .swatch.navy { background: #0f2747; } .swatch.gold { background: #d4a537; }
+.swatch.on { box-shadow: 0 0 0 2px var(--accent); }
+.vis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
+.viscard { margin: 0; font-weight: 400; cursor: pointer; }
+.viscard input { position: absolute; opacity: 0; pointer-events: none; }
+.viscard > span { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; row-gap: 2px; align-items: center; height: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.viscard small { grid-column: 1 / -1; color: var(--muted); font-size: 12.5px; line-height: 1.4; }
+.viscard input:checked + span { border-color: var(--accent); box-shadow: 0 0 0 2px var(--soft); background: var(--soft); }
+.viscard input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.viscard { position: relative; }

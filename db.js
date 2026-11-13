@@ -76,6 +76,7 @@ function addColumn(table, col, def) {
 }
 addColumn('users', 'title', "TEXT DEFAULT ''");
 addColumn('users', 'link', "TEXT DEFAULT ''");
+addColumn('communities', 'rules', "TEXT DEFAULT ''");
 
 // Marka renkleri: lacivert, mavi, altın. Profil ve topluluk renkleri yalnızca bunlardan seçilir.
 const COLORS = ['#0f2747', '#1f5fd6', '#9a7016'];
@@ -120,11 +121,11 @@ function seed() {
 
   const c1 = mkCommunity('tasarim-atolyesi', 'Tasarım Atölyesi', 'Arayüz tasarımını birlikte öğrenen üreticiler',
     'Tasarım Atölyesi; arayüz, tipografi ve ürün düşüncesi üzerine çalışan herkes için açık bir topluluktur.\n\nHer hafta canlı eleştiri oturumu yapıyor, kurslarımızı adım adım ilerliyor ve işlerimizi paylaşıyoruz. Yeni başlayan da olsan, yıllardır tasarlıyor da olsan yerin hazır.',
-    'Tasarım', '🎨', COLORS[1], U[1]);
+    'Tasarım', 'i:pen:blue', COLORS[1], U[1]);
   const c2 = mkCommunity('kod-kampi', 'Kod Kampı', 'Sıfırdan web geliştirmeye, proje yaparak',
-    'Kod Kampı, web geliştirmeyi proje üreterek öğrenmek isteyenlerin buluşma noktası.\n\nSoru sor, kodunu paylaş, haftalık meydan okumalara katıl.', 'Yazılım', '💻', COLORS[0], U[2]);
+    'Kod Kampı, web geliştirmeyi proje üreterek öğrenmek isteyenlerin buluşma noktası.\n\nSoru sor, kodunu paylaş, haftalık meydan okumalara katıl.', 'Yazılım', 'i:code:navy', COLORS[0], U[2]);
   const c3 = mkCommunity('sabah-kosuculari', 'Sabah Koşucuları', 'Güne koşarak başlayanların kulübü',
-    'Her sabah 06:30. Tempo fark etmez, önemli olan çıkmak.\n\nAntrenman planları, yarış takvimi ve bolca motivasyon.', 'Spor', '🏃', COLORS[2], U[4], 1);
+    'Her sabah 06:30. Tempo fark etmez, önemli olan çıkmak.\n\nAntrenman planları, yarış takvimi ve bolca motivasyon.', 'Spor', 'i:activity:gold', COLORS[2], U[4], 1);
 
   db.exec("UPDATE communities SET invite_code=lower(hex(randomblob(8)))");
   db.prepare("UPDATE communities SET price_type='monthly', price_amount=150, price_text=?, pay_info=? WHERE id=?").run('₺150 / ay',
@@ -135,6 +136,7 @@ function seed() {
   msg(U[1], U[0], 'Harika 👏 Perşembe günkü eleştiri oturumuna işini getirmek ister misin?', 2, 0);
   msg(U[3], U[0], 'Karanlık tema paylaşımın çok iyiydi, dosyayı görebilir miyim?', 6, 0);
 
+  db.prepare('UPDATE communities SET rules=? WHERE id=?').run('1. Saygılı ol; eleştiri işe yapılır, kişiye değil.\n2. Soru sorarken neyi denediğini de yaz.\n3. Reklam ve konu dışı paylaşım yapma.', c1);
   const join = (u, c, role, daysAgo) => ins('INSERT INTO memberships(user_id,community_id,role,joined_at) VALUES(?,?,?,?)', u, c, role, now - daysAgo * D);
   U.forEach((u, i) => join(u, c1, u === U[1] ? 'admin' : 'member', 48 - i * 3));
   [2, 0, 3, 6, 7].forEach((i, k) => join(U[i], c2, i === 2 ? 'admin' : 'member', 40 - k * 4));
@@ -200,7 +202,7 @@ function seed() {
   const course = (c, title, desc, emoji) => ins('INSERT INTO courses(community_id,title,description,emoji,created_at) VALUES(?,?,?,?,?)', c, title, desc, emoji, now - 45 * D);
   const lesson = (co, mod, title, content, pos) => ins('INSERT INTO lessons(course_id,module,title,content,position) VALUES(?,?,?,?,?)', co, mod, title, content, pos);
 
-  const k1 = course(c1, 'Arayüz Temelleri', 'Boşluk, hiyerarşi, renk ve tipografi: iyi bir arayüzün dört temel taşı.', '📐');
+  const k1 = course(c1, 'Arayüz Temelleri', 'Boşluk, hiyerarşi, renk ve tipografi: iyi bir arayüzün dört temel taşı.', 'i:layers:blue');
   const L = [
     lesson(k1, '1. Başlangıç', 'Kursa genel bakış', 'Bu kursta iyi bir arayüzü oluşturan temel kararları öğreneceksin.\n\nHer dersin sonunda küçük bir alıştırma var. Alıştırmanı toplulukta paylaşmayı unutma; en hızlı öğrenme yolu geri bildirim almaktır.', 1),
     lesson(k1, '1. Başlangıç', 'İyi tasarım nedir?', 'İyi tasarım dikkat çekmez; kullanıcının işini kolaylaştırır.\n\nÜç soru sor:\n- Kullanıcı burada ne yapmak istiyor?\n- Bunu yapmak için neye bakması gerekiyor?\n- Ekrandaki her öğe bu amaca hizmet ediyor mu?\n\nAlıştırma: Sık kullandığın bir uygulamanın ana ekranını bu üç soruyla değerlendir.', 2),
@@ -209,11 +211,11 @@ function seed() {
     lesson(k1, '3. Stil', 'Renk paleti oluşturmak', 'Bir nötr ölçek, bir vurgu rengi ve durum renkleri (başarı, uyarı, hata) çoğu ürün için yeterlidir.\n\nVurgu rengini az kullan: ne kadar az kullanırsan o kadar güçlü olur.', 5),
     lesson(k1, '3. Stil', 'Tipografi ölçeği', 'Az sayıda yazı boyutu seç ve onlara sadık kal: 13, 15, 18, 24, 32.\n\nSatır uzunluğunu 60–75 karakter arasında tut; satır yüksekliğini gövde metninde 1.5 civarında bırak.', 6),
   ];
-  const k2 = course(c1, 'Portfolyo Hazırlama', 'İşlerini hikâyeleştirerek sunmanın yolları.', '🗂️');
+  const k2 = course(c1, 'Portfolyo Hazırlama', 'İşlerini hikâyeleştirerek sunmanın yolları.', 'i:briefcase:navy');
   db.prepare('UPDATE courses SET min_level=3 WHERE id=?').run(k2);
   lesson(k2, 'Giriş', 'Hangi işleri seçmeli?', 'Az ama derin: üç iyi anlatılmış proje, on yüzeysel projeden iyidir.', 1);
   lesson(k2, 'Giriş', 'Vaka çalışması yazmak', 'Problem → süreç → karar → sonuç. Ekran görüntüsünden önce kararlarını anlat.', 2);
-  const k3 = course(c2, 'Web\'e İlk Adım', 'HTML ve CSS ile ilk sayfanı yayınla.', '🌐');
+  const k3 = course(c2, 'Web\'e İlk Adım', 'HTML ve CSS ile ilk sayfanı yayınla.', 'i:monitor:blue');
   lesson(k3, 'HTML', 'Belge yapısı', 'Her sayfa bir iskeletle başlar: başlık, gövde ve anlamlı etiketler.', 1);
   lesson(k3, 'HTML', 'Bağlantılar ve görseller', 'Bağlantı metni nereye gittiğini söylemeli. Görsellere her zaman alternatif metin yaz.', 2);
   lesson(k3, 'CSS', 'Seçiciler ve kutu modeli', 'Her öğe bir kutudur: içerik, iç boşluk, kenarlık, dış boşluk.', 3);
