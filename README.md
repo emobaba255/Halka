@@ -24,6 +24,7 @@ Ardından tarayıcıda `http://localhost:3000` adresini aç. İlk çalıştırma
 | `BASE_URL` | Sitenin adresi; şifre sıfırlama bağlantılarında kullanılır |
 | `SMTP_URL` | E-posta sunucusu, örn. `smtps://kullanici:sifre@smtp.ornek.com`. Tanımlı değilse e-postalar gönderilmez, sunucu günlüğüne yazılır |
 | `MAIL_FROM` | Gönderen adresi, örn. `Okul <bilgi@ornek.com>` |
+| `VIDEO_QUOTA_GB` | Bir topluluğun derslerine yükleyebileceği toplam video boyutu (varsayılan 5) |
 | `MAX_VIDEO_MB` | Derslere yüklenen bir videonun en büyük boyutu (varsayılan 2048) |
 
 ## Kalıcı veri (Render)

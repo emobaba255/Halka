@@ -186,7 +186,7 @@ async function uploadVideo(file, form) {
     if (!res.ok) throw Object.assign(new Error(data.error || 'Video yüklenemedi'), { got: data.got, status: res.status });
     return data;
   };
-  const { id, chunk } = await api('/video/start', 'POST', { name: file.name, size: file.size });
+  const { id, chunk } = await api('/video/start', 'POST', { name: file.name, size: file.size, courseId: Number(form.dataset.course) });
   if (box) box.hidden = false;
   window.addEventListener('beforeunload', leave);
   try {
@@ -352,7 +352,7 @@ function viewTeach() {
       <h1>Bildiğini öğret,<br>topluluğunu büyüt</h1>
       <p class="muted">Kurslarını, öğrencilerini ve canlı derslerini tek bir yerden yönet. Kurulumu birkaç dakika sürer.</p>
       <div class="row cta"><button class="btn primary lg" data-act="teachStart">Topluluğunu kur</button><a class="btn lg" href="#/pricing">Fiyatlandırma</a></div>
-      <p class="small muted" style="margin-top:12px">Eğitim satanlara aylık ücret yok; yalnızca satıştan pay alınır.</p>
+      <p class="small muted" style="margin-top:12px">Ücretsiz başla. Eğitim satanlara aylık ücret yok; yalnızca satıştan pay alınır.</p>
     </div></section>
     <div class="wrap stack" style="padding-bottom:20px">
       <div class="tgrid">
@@ -512,17 +512,20 @@ function viewSettings(sec) {
 }
 
 // ---------- Fiyatlandırma ----------
-const FEE = 10;        // eğitim satan topluluklarda satıştan alınan hizmet payı (%), ödeme işlem ücreti dahil
-const MIN_PRICE = 250; // ücretli üyeliğin en düşük fiyatı (₺)
-const FREE_PLAN = 149; // üyelerinden ücret almayan toplulukların aylık plan ücreti (₺)
+const FEE = 10;          // ücretli üyelik satışlarından alınan hizmet payı (%), ödeme işlem ücreti dahil
+const MIN_PRICE = 250;   // ücretli üyeliğin en düşük fiyatı (₺)
+const FREE_MEMBERS = 50; // bu sayıya kadar ücretsiz üyesi olan topluluk plan ücreti ödemez
+const FREE_PLAN = 149;   // ücretsiz üye sayısı sınırı aşan toplulukların aylık plan ücreti (₺)
+const QUOTA_GB = 5;      // topluluk başına dahil olan video depolama
 const tl = n => '₺' + Math.round(n).toLocaleString('tr-TR');
 function viewPricing() {
   const li = t => `<li>${ic('check')}<span>${t}</span></li>`;
   const faq = (q, a) => `<details class="card faq"><summary>${q}</summary><p class="muted">${a}</p></details>`;
+  const why = (icon, title, text) => `<div class="card tfeature"><span class="ficon">${ic(icon)}</span><div><b>${title}</b><p class="small muted">${text}</p></div></div>`;
   return `<section class="teach-hero"><div class="wrap">
       <span class="tag gold">Fiyatlandırma</span>
-      <h1>Eğitim satanlara aylık ücret yok.<br>Sen kazanınca biz de kazanırız.</h1>
-      <p class="muted">İki sade plan var: eğitim satıyorsan yalnızca satıştan pay alırız; topluluğun ücretsizse küçük bir aylık ücretle giderimizi karşılarız.</p>
+      <h1>Ücretsiz başla.<br>Sen kazanınca biz de kazanırız.</h1>
+      <p class="muted">Deneme süresi yok, kart bilgisi yok. Topluluğunu ücretsiz kur; eğitim satmaya başladığında yalnızca satıştan küçük bir pay alırız.</p>
     </div></section>
     <div class="wrap stack" style="padding-bottom:24px">
       <div class="pricegrid two">
@@ -536,52 +539,65 @@ function viewPricing() {
             ${li(`Gelirinin %${100 - FEE}'i sende kalır`)}
             ${li('Satış yapmadığın ay hiçbir şey ödemezsin')}
             ${li(`Üyelik ücretini sen belirlersin (en az ${tl(MIN_PRICE)})`)}
+            ${li('Ücretli üye sayısında sınır yok')}
           </ul>
           <button class="btn primary lg block" data-act="teachStart">Topluluğunu kur</button>
         </div>
         <div class="card plan plain">
           <span class="tag">Ücretsiz eğitim verenler için</span>
           <h3>Ücretsiz topluluk</h3>
-          <div class="price"><b>${tl(FREE_PLAN)}</b><span>/ ay</span></div>
-          <p class="muted">Üyelerinden ücret almıyorsan, barındırma giderini karşılayan sabit bir aylık ücret ödersin.</p>
+          <div class="price"><b>₺0</b><span>/ ay · ${FREE_MEMBERS} üyeye kadar</span></div>
+          <p class="muted">Küçük topluluklar süresiz ücretsiz. Topluluğun büyüyünce sabit ve düşük bir aylık ücrete geçersin.</p>
           <ul class="checks">
+            ${li(`İlk ${FREE_MEMBERS} üye için süresiz ücretsiz`)}
+            ${li(`${FREE_MEMBERS} üyeden sonra <b>${tl(FREE_PLAN)} / ay</b>, üye sayısı sınırsız`)}
             ${li('Hizmet payı ya da komisyon yok')}
             ${li('Üyelerin için tamamen ücretsiz')}
-            ${li('Üye, kurs ve ders sayısında sınır yok')}
             ${li('İstediğin zaman ücretli topluluğa geçebilirsin')}
           </ul>
           <button class="btn lg block" data-act="teachStart">Topluluğunu kur</button>
         </div>
       </div>
-      <div class="card notice small"><b>Tanıtım dönemi:</b> kartla ödeme altyapımız açılana kadar iki plan da ücretsiz. Bu dönemde hizmet payı ve aylık plan ücreti alınmıyor; üyelik ödemeleri doğrudan eğitmenin hesabına yapılıyor.</div>
+      <div class="card notice small"><b>Tanıtım dönemi:</b> kartla ödeme altyapımız açılana kadar iki plan da tamamen ücretsiz. Bu dönemde hizmet payı ve aylık plan ücreti alınmıyor; üyelik ödemeleri doğrudan eğitmenin hesabına yapılıyor.</div>
       <div class="card stack"><h3>İki planda da olanlar</h3>
         <ul class="checks cols">
-          ${li('Sınırsız üye, kurs ve ders')}${li('Topluluk akışı, anketler, özel mesajlar')}${li('Canlı yayın ve anlık sohbet')}${li('Yönetim paneli ve istatistikler')}
-          ${li('Açık, özel ya da gizli topluluk; davet bağlantısı')}${li('Kendi logon, kapak görselin ve kuralların')}${li('Derslere video, dosya ve bağlantı ekleme')}${li('Seviye sistemi ve sıralama')}
+          ${li('Sınırsız kurs ve ders')}${li('Ders sonu testleri')}${li('Derslere video, dosya ve bağlantı ekleme')}${li(`${QUOTA_GB} GB video depolama; YouTube bağlantısıyla sınırsız video`)}
+          ${li('Topluluk akışı, anketler, özel mesajlar')}${li('Canlı yayın ve anlık sohbet')}${li('Yönetim paneli ve istatistikler')}${li('Seviye sistemi ve sıralama')}
+          ${li('Açık, özel ya da gizli topluluk; davet bağlantısı')}${li('Kendi logon, kapak görselin ve kuralların')}${li('Açık ve koyu tema')}${li('Türkçe arayüz, TL ile fiyat')}
         </ul></div>
       <div class="card stack calc"><h2>Eğitim satarsan ne kadar kazanırsın?</h2><p class="small muted">Üye sayını ve aylık ücretini yaz; hesap anında güncellenir.</p>
         <div class="row" style="flex-wrap:wrap;align-items:flex-end"><div class="grow" style="min-width:140px"><label for="pc-n">Ücretli üye sayısı</label><input id="pc-n" type="number" min="0" max="1000000" step="1" value="50" data-calc inputmode="numeric"></div>
           <div class="grow" style="min-width:140px"><label for="pc-p">Aylık üyelik ücreti (₺)</label><input id="pc-p" type="number" min="${MIN_PRICE}" max="1000000" step="1" value="300" data-calc inputmode="numeric"></div></div>
         <div class="statgrid" id="calcOut">${calcOut(50, 300)}</div>
         <p class="small muted">Hizmet payına kart ve ödeme işlem ücreti dahildir; ayrıca bir kesinti yapılmaz.</p></div>
-      <div class="card stack"><h2>Neden bu model?</h2>
+      <div><h2>Neden Okul?</h2><p class="small muted">Yurt dışı kaynaklı topluluk platformlarını kullananların en sık dile getirdiği sorunları çözmek için tasarlandı.</p></div>
+      <div class="tgrid" style="margin-top:0">
+        ${why('zap', 'Deneme süresi değil, ücretsiz başlangıç', `Birkaç haftalık deneme yerine süresiz ücretsiz başlarsın: ${FREE_MEMBERS} üyeye kadar plan ücreti yok.`)}
+        ${why('dollar', 'Kazanmadan ödemek yok', 'Eğitim satanlar için sabit aylık ücret yok. Üyen yoksa ödemen de yok.')}
+        ${why('globe', 'Türkçe ve TL', 'Arayüz Türkçe, fiyatlar TL. Üyelerin kur farkı ya da yabancı dilde ekranlarla uğraşmaz.')}
+        ${why('pen', 'Topluluğun sana benzesin', 'Logo, kapak görseli, simge, renk, kategoriler, kurallar ve görünen bölümler senin elinde.')}
+        ${why('check', 'Ders sonu testleri', 'Öğrencilerin dersi anlayıp anlamadığını ek araç kullanmadan ölç.')}
+        ${why('layers', 'Tek oran, sürpriz yok', `Tek kesinti %${FEE} ve işlem ücreti içinde. Plan yükseltme, ek paket ya da gizli ücret yok.`)}
+      </div>
+      <div class="card stack">
         <div class="cmp" role="table" aria-label="Karşılaştırma">
           <div role="row" class="cmp-head"><span role="columnheader"></span><span role="columnheader">Okul</span><span role="columnheader">Sabit aylık ücretli platformlar</span></div>
+          <div role="row"><span role="rowheader">Başlangıç</span><b role="cell">Süresiz ücretsiz</b><span role="cell">Kısa deneme, sonra aylık ücret</span></div>
           <div role="row"><span role="rowheader">Eğitim satanlar için aylık ücret</span><b role="cell">Yok</b><span role="cell">Var</span></div>
           <div role="row"><span role="rowheader">Satış yapmadığın ay</span><b role="cell">₺0</b><span role="cell">Yine ödersin</span></div>
           <div role="row"><span role="rowheader">Kesinti</span><b role="cell">Tek oran: %${FEE}, her şey dahil</b><span role="cell">Aylık ücrete ek işlem kesintisi</span></div>
-          <div role="row"><span role="rowheader">Ne zaman ödersin?</span><b role="cell">Yalnızca kazandığında</b><span role="cell">Her ay, kazançtan bağımsız</span></div>
-        </div>
-        <p class="small muted">Yeni başlayan bir eğitmen için en büyük risk, henüz kazanmadan ödemeye başlamaktır. Okul'da eğitim satanlar için bu risk yok: topluluğun büyüdükçe birlikte kazanırız.</p></div>
+          <div role="row"><span role="rowheader">Fiyat ve dil</span><b role="cell">TL ve Türkçe</b><span role="cell">Çoğunlukla dolar ve İngilizce</span></div>
+        </div></div>
       <div><h2>Sık sorulanlar</h2></div>
       ${faq('Öğrenciler Okul\'a ücret öder mi?', 'Hayır. Öğrenci olmak, topluluklara katılmak ve ücretsiz toplulukların kurslarını izlemek tamamen ücretsizdir. Ücretli bir topluluğa katılan öğrenci yalnızca eğitmenin belirlediği üyelik ücretini öder.')}
-      ${faq('Ücretsiz topluluk neden aylık ücretli?', `Her topluluğun barındırma, depolama ve bakım gideri var. Eğitim satan topluluklarda bu gideri satıştan aldığımız pay karşılar. Ücretsiz topluluklarda satış olmadığı için gideri ${tl(FREE_PLAN)} tutarındaki sabit aylık ücret karşılar; üyelerinden hiçbir şey alınmaz.`)}
+      ${faq(`Ücretsiz toplulukta ${FREE_MEMBERS} üyeyi geçince ne olur?`, `Topluluğun çalışmaya devam eder. ${FREE_MEMBERS} üyeden sonra, barındırma ve depolama giderini karşılamak için ${tl(FREE_PLAN)} tutarında sabit aylık ücret başlar; üye sayın ne kadar artarsa artsın ücret değişmez. Üyelerinden hiçbir şey alınmaz.`)}
+      ${faq('Ücretli toplulukta ücretsiz üye alabilir miyim?', `Evet, davet bağlantısıyla. Ücretsiz aldığın üye sayısı ${FREE_MEMBERS}'yi geçerse ücretsiz topluluklardaki ${tl(FREE_PLAN)} aylık ücret burada da uygulanır.`)}
       ${faq('Hizmet payı tam olarak neden alınır?', `Yalnızca ücretli üyelik ödemelerinden, %${FEE} oranında; kart ve ödeme işlem ücreti bu orana dahildir. Kurs sayısından, üye sayısından ya da canlı yayınlardan ek ücret alınmaz.`)}
       ${faq('En düşük üyelik ücreti neden ' + tl(MIN_PRICE) + '?', 'Çok küçük tutarlarda kart işlem ücreti ödemenin büyük kısmını götürür. Alt sınır, hem eğitmenin hem platformun her satıştan anlamlı bir pay almasını sağlar.')}
+      ${faq('Video depolama sınırı ne demek?', `Her topluluk derslerine toplam ${QUOTA_GB} GB video dosyası yükleyebilir. YouTube bağlantısıyla eklediğin videolar bu sınıra dahil değildir ve sayıca sınırsızdır.`)}
       ${faq('Şu an bir şey ödeyecek miyim?', 'Hayır. Kartla ödeme altyapımız açılana kadar tanıtım dönemindeyiz: hizmet payı ve aylık plan ücreti alınmıyor, üyelik ödemeleri doğrudan senin hesabına yapılıyor.')}
-      ${faq('Planımı sonradan değiştirebilir miyim?', 'Evet. Üyelik türünü yönetim panelinden değiştirdiğinde planın da değişir: ücretli üyeliğe geçersen aylık plan ücreti biter ve yalnızca satıştan pay alınır; ücretsize dönersen tersi olur.')}
       ${faq('Taahhüt ya da iptal ücreti var mı?', 'Yok. Topluluğunu istediğin zaman kapatabilirsin.')}
-      <div style="text-align:center;padding:8px 0 16px"><button class="btn primary lg" data-act="teachStart">Topluluğunu kur</button></div>
+      <div style="text-align:center;padding:8px 0 16px"><button class="btn primary lg" data-act="teachStart">Topluluğunu ücretsiz kur</button></div>
     </div>`;
 }
 function calcOut(n, p) {
@@ -909,6 +925,8 @@ async function tabCourse(courseId, lessonId) {
             <p class="small muted" style="margin-top:4px">Video parça parça yüklenir; bitene kadar sayfayı kapatma. Çok uzun videolar için YouTube bağlantısı daha hızlıdır.</p></div>
           <div class="upbar" hidden><div class="bar"><i style="width:0"></i></div><span class="small muted">Video yükleniyor…</span></div>
           <div><label for="l-file">Ders dosyaları (PDF, ZIP, Word, Excel… en çok 10)</label><input id="l-file" type="file" name="files" multiple accept=".pdf,.zip,.docx,.xlsx,.pptx,.txt,.csv"></div>
+          <div><label for="l-quiz">Ders sonu testi (isteğe bağlı)</label><textarea id="l-quiz" name="quiz" rows="5" maxlength="12000" placeholder="Soru metni?&#10;* Doğru seçenek&#10;- Yanlış seçenek&#10;- Yanlış seçenek&#10;&#10;İkinci soru?&#10;- Yanlış&#10;* Doğru"></textarea>
+            <p class="small muted" style="margin-top:4px">Her soru bir blok: ilk satır soru, altına seçenekler. Doğru seçeneği <b>*</b>, yanlışları <b>-</b> ile başlat; sorular arasında boş satır bırak.</p></div>
           <div><label for="l-links">Bağlantılar (her satıra bir tane)</label><textarea id="l-links" name="links" rows="3" maxlength="6000" style="min-height:70px" placeholder="Figma | https://figma.com&#10;ornek.com/makale"></textarea>
             <p class="small muted" style="margin-top:4px">Başlık vermek için “Başlık | adres” yaz; yalnızca adres yazarsan site adı gösterilir.</p></div>
           <div><label for="l-content">İçerik</label><textarea id="l-content" name="content" maxlength="10000" rows="5"></textarea></div>
@@ -931,8 +949,11 @@ async function tabCourse(courseId, lessonId) {
       ${cur.links.length || cur.files.length ? `<div class="resources"><h3>Kaynaklar</h3>
         ${cur.links.map(l => { let host = ''; try { host = new URL(l.url).hostname.replace(/^www\./, ''); } catch { /* gösterilmez */ } return `<a class="file" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${ic('link')} <span><b style="color:inherit;font-size:inherit">${esc(l.title)}</b>${host && host !== l.title ? ` <small class="muted">${esc(host)}</small>` : ''}</span>${ic('ext')}</a>`; }).join('')}
         ${cur.files.map(f => fileLink(f.url, f.name)).join('')}</div>` : ''}
+      ${cur.quiz.length ? `<form class="quiz stack" data-form="quiz" data-id="${cur.id}"><div><h3>Kendini dene</h3><p class="small muted">${cur.quiz.length} soru${cur.quizResult ? ` · Son sonucun: <b>${cur.quizResult.score}/${cur.quizResult.total}</b>` : ''}</p></div>
+        ${cur.quiz.map((q, i) => `<fieldset class="qz"><legend>${i + 1}. ${esc(q.q)}</legend>${q.options.map((o, j) => `<label class="check"><input type="radio" name="q${i}" value="${j}" required><span>${esc(o)}</span></label>`).join('')}</fieldset>`).join('')}
+        <div class="row" style="flex-wrap:wrap"><button class="btn primary">Yanıtları gönder</button><b class="quizout" role="status"></b></div></form>` : ''}
       ${C.role === 'admin' ? `<details class="adminbox"><summary class="linkbtn" style="color:var(--accent)">${ic('edit')} Dersi düzenle</summary>
-        <form class="stack" data-form="lessonEdit" data-id="${cur.id}">
+        <form class="stack" data-form="lessonEdit" data-id="${cur.id}" data-course="${course.id}">
           <div><label for="le-mod">Bölüm</label><input id="le-mod" type="text" name="module" value="${esc(cur.module)}" required maxlength="60"></div>
           <div><label for="le-title">Ders adı</label><input id="le-title" type="text" name="title" value="${esc(cur.title)}" required minlength="2" maxlength="100"></div>
           <div><label for="le-video">YouTube bağlantısı</label><input id="le-video" type="url" name="video" value="${cur.video ? 'https://youtu.be/' + esc(cur.video) : ''}" maxlength="200"></div>
@@ -943,6 +964,7 @@ async function tabCourse(courseId, lessonId) {
           <div class="upbar" hidden><div class="bar"><i style="width:0"></i></div><span class="small muted">Video yükleniyor…</span></div>
           ${cur.image ? '<label class="check"><input type="checkbox" name="removeImage"> Görseli kaldır</label>' : ''}
           ${cur.video_file ? '<label class="check"><input type="checkbox" name="removeVideo"> Yüklenen videoyu kaldır</label>' : ''}
+          <div><label for="le-quiz">Ders sonu testi (* doğru, - yanlış; sorular arasında boş satır)</label><textarea id="le-quiz" name="quiz" rows="6" maxlength="12000">${esc(cur.quizText || '')}</textarea></div>
           <div><label for="le-links">Bağlantılar (her satıra bir tane: “Başlık | adres”)</label><textarea id="le-links" name="links" rows="3" maxlength="6000" style="min-height:70px">${esc(cur.links.map(l => `${l.title} | ${l.url}`).join('\n'))}</textarea></div>
           ${cur.files.length ? `<div><label>Ekli dosyalar (işareti kaldırırsan silinir)</label>${cur.files.map(f => `<label class="check"><input type="checkbox" name="keepFile" value="${esc(f.url)}" data-name="${esc(f.name)}" checked> ${esc(f.name)}</label>`).join('')}</div>` : ''}
           <div><label for="le-files">Dosya ekle</label><input id="le-files" type="file" name="files" multiple accept=".pdf,.zip,.docx,.xlsx,.pptx,.txt,.csv"></div>
@@ -1100,6 +1122,7 @@ function adminOverview(A) {
       ${stat(s.members, 'Toplam üye', `Son 7 günde +${s.new7} · 30 günde +${s.new30}`)}
       ${stat(A.requests.length, 'Bekleyen istek', A.requests.length ? `<a href="#/c/${esc(c.slug)}/admin/members" style="color:var(--accent);font-weight:600">İncele →</a>` : 'Bekleyen yok')}
       ${stat(s.posts7, 'Gönderi (7 gün)', `${s.comments7} yorum · ${s.likes7} beğeni`)}
+      ${stat(`${(A.storage.used / 1024 ** 3).toFixed(2).replace('.', ',')} GB`, 'Video depolama', `${Math.round(A.storage.quota / 1024 ** 3)} GB kotanın %${Math.min(100, Math.round(A.storage.used * 100 / A.storage.quota))}'i · YouTube videoları sayılmaz`)}
       ${c.price_type === 'monthly' ? stat(tl(s.revenue), 'Tahmini aylık gelir', `${s.paying} aktif ücretli üye × ${tl(c.price_amount)}`) : stat(c.price_text ? esc(c.price_text) : 'Ücretsiz', 'Üyelik türü', `<a href="#/c/${esc(c.slug)}/admin/pricing" style="color:var(--accent);font-weight:600">Değiştir →</a>`)}
     </div>
     <div class="card stack"><h3>Davet bağlantısı</h3>
@@ -1150,7 +1173,7 @@ function adminPricing(A) {
         <li><b>Aylık</b> üyelikte onay 30 gün erişim açar. Süre dolunca üye içerikleri göremez; yeniden ödeyip yenileme isteği gönderir ya da sen süreyi elle uzatırsın.</li>
         <li><b>Tek seferlik</b> üyelikte onay süresiz erişim açar.</li>
       </ol>
-      <p class="small"><b>Planın:</b> ${c.price_type === 'free' ? `Ücretsiz topluluk — ${tl(FREE_PLAN)} / ay, komisyon yok.` : `Ücretli topluluk — aylık ücret yok, satışlardan %${FEE} hizmet payı.`} Tanıtım döneminde ikisi de alınmıyor.</p>
+      <p class="small"><b>Planın:</b> ${c.price_type === 'free' ? `Ücretsiz topluluk — ${FREE_MEMBERS} üyeye kadar ücretsiz, sonrasında ${tl(FREE_PLAN)} / ay; komisyon yok.` : `Ücretli topluluk — aylık ücret yok, satışlardan %${FEE} hizmet payı.`} Tanıtım döneminde ikisi de alınmıyor.</p>
       <p class="small muted">Kartla otomatik tahsilat henüz yok; ödemeler senin hesabına doğrudan yapılır ve bu dönemde Okul hizmet payı almaz. Şu an ${A.stats.paying} aktif süreli üyen var. <a href="#/pricing" style="color:var(--accent);font-weight:600">Fiyatlandırma →</a></p></div>`;
 }
 function adminMembers(A) {
@@ -1308,7 +1331,7 @@ const forms = {
   async course(d) { const r = await api(slugPath() + '/courses', 'POST', d); go(`#/c/${C.community.slug}/classroom/${r.id}`); },
   async lesson(d, form) {
     const image = await upload(d.image), files = await uploadFiles(form), videoFile = await uploadVideo(d.videoFile, form);
-    const r = await api(`/courses/${form.dataset.course}/lessons`, 'POST', { module: d.module, title: d.title, video: d.video, content: d.content, links: d.links, files, image, videoFile }); go(`#/c/${C.community.slug}/classroom/${form.dataset.course}/${r.id}`); },
+    const r = await api(`/courses/${form.dataset.course}/lessons`, 'POST', { module: d.module, title: d.title, video: d.video, content: d.content, links: d.links, quiz: d.quiz, files, image, videoFile }); go(`#/c/${C.community.slug}/classroom/${form.dataset.course}/${r.id}`); },
   async event(d) {
     const startsAt = new Date(d.when).getTime();
     await api(slugPath() + '/events', 'POST', { ...d, startsAt });
@@ -1323,12 +1346,20 @@ const forms = {
   async courseEdit(d, form) { await api('/courses/' + form.dataset.id, 'PUT', d); toast('Kurs güncellendi'); route(); },
   async lessonEdit(d, form) {
     const kept = [...form.querySelectorAll('input[name=keepFile]:checked')].map(i => ({ url: i.value, name: i.dataset.name }));
-    const body = { module: d.module, title: d.title, video: d.video, content: d.content, links: d.links, files: [...kept, ...await uploadFiles(form)] };
+    const body = { module: d.module, title: d.title, video: d.video, content: d.content, links: d.links, quiz: d.quiz, files: [...kept, ...await uploadFiles(form)] };
     if (d.image?.size) body.image = await upload(d.image); else if (d.removeImage) body.image = '';
     if (d.videoFile?.size) body.videoFile = await uploadVideo(d.videoFile, form); else if (d.removeVideo) body.videoFile = '';
     await api('/lessons/' + form.dataset.id, 'PUT', body); toast('Ders güncellendi'); route();
   },
   async postEdit(d, form) { await api('/posts/' + form.dataset.id, 'PUT', d); toast('Gönderi güncellendi'); route(); },
+  async quiz(d, form) {
+    const sets = [...form.querySelectorAll('.qz')], r = await api(`/lessons/${form.dataset.id}/quiz`, 'POST', { answers: sets.map((_, i) => Number(d['q' + i])) });
+    sets.forEach((fs, i) => fs.querySelectorAll('label').forEach((lb, j) => { // doğru yanıtı ve yanlış seçimi işaretle
+      lb.classList.toggle('ok', j === r.correct[i]);
+      lb.classList.toggle('bad', j !== r.correct[i] && $('input', lb).checked);
+    }));
+    $('.quizout', form).textContent = `Sonuç: ${r.score}/${r.total}${r.score === r.total ? ' — hepsi doğru!' : ''}`;
+  },
   async adminPricing(d) { await api(slugPath() + '/pricing', 'PUT', d); toast('Üyelik ayarları kaydedildi'); route(); },
   async liveStart(d) { await api(slugPath() + '/live', 'POST', d); toast('Yayın başladı, üyelere bildirim gönderildi'); go(`#/c/${C.community.slug}/live`); },
   async liveChat(d, form) { await api(slugPath() + '/live/chat', 'POST', { body: d.body }); form.reset(); await pollLive(); },

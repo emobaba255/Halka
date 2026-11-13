@@ -73,6 +73,9 @@ CREATE TABLE IF NOT EXISTS poll_votes(
 CREATE TABLE IF NOT EXISTS live_chat(
   id INTEGER PRIMARY KEY, community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
   user_id INTEGER NOT NULL, body TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS quiz_results(
+  user_id INTEGER NOT NULL, lesson_id INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+  score INTEGER NOT NULL, total INTEGER NOT NULL, at INTEGER NOT NULL, PRIMARY KEY(user_id, lesson_id));
 CREATE TABLE IF NOT EXISTS resets(
   token TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires_at INTEGER NOT NULL);
 `);
@@ -89,6 +92,7 @@ addColumn('lessons', 'video_file', "TEXT DEFAULT ''");
 addColumn('lessons', 'links', "TEXT DEFAULT ''");
 addColumn('lessons', 'files', "TEXT DEFAULT ''");
 addColumn('users', 'prefs', "TEXT DEFAULT ''");
+addColumn('lessons', 'quiz', "TEXT DEFAULT ''");
 
 // Marka renkleri: lacivert, mavi, altın. Profil ve topluluk renkleri yalnızca bunlardan seçilir.
 const COLORS = ['#0f2747', '#1f5fd6', '#9a7016'];
@@ -225,6 +229,10 @@ function seed() {
     lesson(k1, '3. Stil', 'Tipografi ölçeği', 'Az sayıda yazı boyutu seç ve onlara sadık kal: 13, 15, 18, 24, 32.\n\nSatır uzunluğunu 60–75 karakter arasında tut; satır yüksekliğini gövde metninde 1.5 civarında bırak.', 6),
   ];
   db.prepare('UPDATE lessons SET links=? WHERE id=?').run(JSON.stringify([{ title: 'Renk kontrastı denetleyici', url: 'https://webaim.org/resources/contrastchecker/' }, { title: 'Boşluk ölçeği üzerine yazı', url: 'https://example.com/bosluk-olcegi' }]), L[2]);
+  db.prepare('UPDATE lessons SET quiz=? WHERE id=?').run(JSON.stringify([
+    { q: 'Boşluk ölçeği kullanmanın temel faydası nedir?', options: ['Tasarımın tutarlı görünmesi', 'Dosya boyutunun küçülmesi', 'Renklerin daha canlı olması'], correct: 0 },
+    { q: 'Birbiriyle ilişkili öğeler nasıl yerleştirilmeli?', options: ['Birbirinden uzak', 'Birbirine yakın', 'Rastgele'], correct: 1 },
+  ]), L[2]);
   const k2 = course(c1, 'Portfolyo Hazırlama', 'İşlerini hikâyeleştirerek sunmanın yolları.', 'i:briefcase:navy');
   db.prepare('UPDATE courses SET min_level=3 WHERE id=?').run(k2);
   lesson(k2, 'Giriş', 'Hangi işleri seçmeli?', 'Az ama derin: üç iyi anlatılmış proje, on yüzeysel projeden iyidir.', 1);

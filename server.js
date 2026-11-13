@@ -160,6 +160,33 @@ function parseFiles(v) {
   return v.map(f => ({ url: fileUrl(f?.url), name: optText(f?.name, 'Dosya adı', 120) || 'dosya' })).filter(f => f.url);
 }
 const lessonFiles = l => [...(l.file ? [{ url: l.file, name: l.file_name }] : []), ...(l.files ? JSON.parse(l.files) : [])];
+// Ders sonu testi. Yazım: her soru bir blok; ilk satır soru, sonraki satırlar seçenek ("-" yanlış, "*" doğru); bloklar boş satırla ayrılır
+function parseQuiz(v) {
+  const out = [];
+  for (const block of String(v ?? '').replace(/\r/g, '').split(/\n\s*\n/)) {
+    const lines = block.split('\n').map(s => s.trim()).filter(Boolean);
+    if (!lines.length) continue;
+    if (out.length >= 20) fail(400, 'Bir teste en fazla 20 soru eklenebilir');
+    const q = lines[0], options = [], correct = [];
+    for (const ln of lines.slice(1)) {
+      const m = /^([*-])\s*(.+)$/.exec(ln);
+      if (!m) fail(400, `Test yazımı hatalı: "${ln.slice(0, 40)}". Seçenekler "-" ya da "*" ile başlamalı`);
+      if (m[1] === '*') correct.push(options.length);
+      options.push(m[2].slice(0, 200));
+    }
+    if (options.length < 2 || options.length > 6) fail(400, `"${q.slice(0, 40)}" sorusunda 2 ile 6 arasında seçenek olmalı`);
+    if (correct.length !== 1) fail(400, `"${q.slice(0, 40)}" sorusunda tam bir doğru seçenek "*" ile işaretlenmeli`);
+    out.push({ q: q.slice(0, 300), options, correct: correct[0] });
+  }
+  return out;
+}
+const quizText = qs => qs.map(x => [x.q, ...x.options.map((o, i) => (i === x.correct ? '* ' : '- ') + o)].join('\n')).join('\n\n');
+// Öğrenciye doğru yanıtlar gönderilmez; yöneticiye düzenleme için ham yazım da gider
+function quizView(l, isAdmin, userId) {
+  const qs = l.quiz ? JSON.parse(l.quiz) : [];
+  return { ...l, quiz: qs.map(({ q, options }) => ({ q, options })), quizText: isAdmin ? quizText(qs) : undefined,
+    quizResult: qs.length ? one('SELECT score,total FROM quiz_results WHERE user_id=? AND lesson_id=?', userId, l.id) || null : null };
+}
 const lessonOut = ({ file, file_name, ...l }) => ({ ...l, files: lessonFiles({ file, file_name, files: l.files }), links: l.links ? JSON.parse(l.links) : [] });
 const removeLessonUploads = l => { lessonFiles(l).forEach(f => removeUpload(f.url)); removeUpload(l.image); removeUpload(l.video_file); };
 
@@ -675,9 +702,9 @@ app.get('/api/courses/:id', auth, loadCourse, member, (req, res) => {
     fail(403, `Bu kurs Seviye ${req.course.min_level} ve üzeri üyelere açık. Gönderi ve yorumlarına beğeni topladıkça seviyen yükselir.`);
   res.json({
     course: { id, title, description, emoji, min_level },
-    lessons: all(`SELECT l.id,l.module,l.title,l.content,l.video,l.file,l.file_name,l.files,l.links,l.image,l.video_file,
+    lessons: all(`SELECT l.id,l.module,l.title,l.content,l.video,l.file,l.file_name,l.files,l.links,l.quiz,l.image,l.video_file,
       EXISTS(SELECT 1 FROM progress p WHERE p.lesson_id=l.id AND p.user_id=?) done
-      FROM lessons l WHERE l.course_id=? ORDER BY l.position, l.id`, req.user.id, id).map(lessonOut),
+      FROM lessons l WHERE l.course_id=? ORDER BY l.position, l.id`, req.user.id, id).map(lessonOut).map(l => quizView(l, req.role === 'admin', req.user.id)),
   });
 });
 app.put('/api/courses/:id', auth, loadCourse, admin, (req, res) => {
@@ -707,8 +734,19 @@ app.put('/api/lessons/:id', auth, loadLesson, admin, (req, res) => {
   const links = req.body.links === undefined ? req.lesson.links : JSON.stringify(parseLinks(req.body.links));
   const oldFiles = lessonFiles(req.lesson), files = req.body.files === undefined ? oldFiles : parseFiles(req.body.files);
   oldFiles.filter(o => !files.some(f => f.url === o.url)).forEach(o => removeUpload(o.url));
-  run("UPDATE lessons SET module=?, title=?, content=?, video=?, image=?, video_file=?, links=?, files=?, file='', file_name='' WHERE id=?", text(req.body.module, 'Bölüm', 60), text(req.body.title, 'Ders adı', 100, 2), optText(req.body.content, 'İçerik', 10000), vid, image, videoFile, links, JSON.stringify(files), req.lesson.id);
+  const quiz = req.body.quiz === undefined ? req.lesson.quiz : JSON.stringify(parseQuiz(req.body.quiz));
+  if (quiz !== req.lesson.quiz) run('DELETE FROM quiz_results WHERE lesson_id=?', req.lesson.id); // sorular değiştiyse eski sonuçlar geçersiz
+  run("UPDATE lessons SET module=?, title=?, content=?, video=?, image=?, video_file=?, links=?, files=?, quiz=?, file='', file_name='' WHERE id=?", text(req.body.module, 'Bölüm', 60), text(req.body.title, 'Ders adı', 100, 2), optText(req.body.content, 'İçerik', 10000), vid, image, videoFile, links, JSON.stringify(files), quiz, req.lesson.id);
   res.json({ ok: true });
+});
+app.post('/api/lessons/:id/quiz', auth, loadLesson, member, (req, res) => {
+  const qs = req.lesson.quiz ? JSON.parse(req.lesson.quiz) : [];
+  if (!qs.length) fail(400, 'Bu derste test yok');
+  const answers = Array.isArray(req.body.answers) ? req.body.answers.map(Number) : [];
+  if (answers.length !== qs.length || answers.some(a => !Number.isInteger(a))) fail(400, 'Tüm soruları yanıtlamalısın');
+  const score = qs.filter((x, i) => x.correct === answers[i]).length;
+  run('INSERT OR REPLACE INTO quiz_results(user_id,lesson_id,score,total,at) VALUES(?,?,?,?,?)', req.user.id, req.lesson.id, score, qs.length, now());
+  res.json({ score, total: qs.length, correct: qs.map(x => x.correct) });
 });
 app.delete('/api/lessons/:id', auth, loadLesson, admin, (req, res) => {
   removeLessonUploads(req.lesson);
@@ -725,9 +763,9 @@ app.post('/api/courses/:id/lessons', auth, loadCourse, admin, (req, res) => {
   const vid = url ? /(?:youtu\.be\/|[?&]v=|embed\/|shorts\/)([\w-]{11})/.exec(url)?.[1] : '';
   if (url && !vid) fail(400, 'Yalnızca YouTube bağlantıları destekleniyor');
   const pos = one('SELECT COALESCE(MAX(position),0)+1 n FROM lessons WHERE course_id=?', req.course.id).n;
-  const id = Number(run('INSERT INTO lessons(course_id,module,title,content,video,links,files,image,video_file,position) VALUES(?,?,?,?,?,?,?,?,?,?)',
+  const id = Number(run('INSERT INTO lessons(course_id,module,title,content,video,links,files,quiz,image,video_file,position) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
     req.course.id, text(req.body.module, 'Bölüm', 60), text(req.body.title, 'Ders adı', 100, 2), optText(req.body.content, 'İçerik', 10000), vid,
-    JSON.stringify(parseLinks(req.body.links)), JSON.stringify(parseFiles(req.body.files)), img(req.body.image), vidUrl(req.body.videoFile), pos).lastInsertRowid);
+    JSON.stringify(parseLinks(req.body.links)), JSON.stringify(parseFiles(req.body.files)), JSON.stringify(parseQuiz(req.body.quiz)), img(req.body.image), vidUrl(req.body.videoFile), pos).lastInsertRowid);
   res.json({ id });
 });
 app.post('/api/lessons/:id/complete', auth, (req, res) => {
@@ -820,6 +858,7 @@ app.get('/api/communities/:slug/admin', auth, loadCommunity, admin, (req, res) =
     },
     requests: all('SELECT u.id,u.name,u.color,u.avatar,r.note,r.created_at FROM join_requests r JOIN users u ON u.id=r.user_id WHERE r.community_id=? ORDER BY r.created_at', c.id),
     members, invite_code: c.invite_code, owner_id: c.owner_id,
+    storage: { used: videoBytes(c.id), quota: VIDEO_QUOTA },
   });
 });
 app.post('/api/communities/:slug/members/:userId', auth, loadCommunity, admin, (req, res) => {
@@ -904,6 +943,14 @@ app.post('/api/posts/:id/vote', auth, loadPost, member, (req, res) => {
 // Büyük dosyalar tek istekte gönderilmez: tarayıcı videoyu 4 MB'lık parçalara böler, sunucu sırayla diske ekler.
 const MAX_VIDEO = (parseInt(process.env.MAX_VIDEO_MB, 10) || 2048) * 1024 * 1024;
 const CHUNK = 4 * 1024 * 1024;
+const VIDEO_QUOTA = (parseFloat(process.env.VIDEO_QUOTA_GB) || 5) * 1024 ** 3; // topluluk başına yüklenen video toplamı
+function videoBytes(communityId) {
+  let sum = 0;
+  for (const l of all("SELECT l.video_file FROM lessons l JOIN courses k ON k.id=l.course_id WHERE k.community_id=? AND l.video_file<>''", communityId)) {
+    try { sum += fs.statSync(path.join(UPLOADS, path.basename(l.video_file))).size; } catch { /* dosya yoksa sayılmaz */ }
+  }
+  return sum;
+}
 const pendingVideos = new Map();
 for (const f of fs.readdirSync(UPLOADS)) if (f.endsWith('.part')) fs.unlink(path.join(UPLOADS, f), () => {}); // yarım kalmış yüklemeleri temizle
 setInterval(() => {
@@ -911,7 +958,8 @@ setInterval(() => {
 }, 10 * 60e3).unref();
 const sizeLabel = b => (b >= 1024 ** 3 ? `${(b / 1024 ** 3).toFixed(1).replace('.0', '')} GB` : `${Math.round(b / 1024 ** 2)} MB`);
 app.post('/api/video/start', auth, (req, res) => {
-  if (!one("SELECT 1 FROM memberships WHERE user_id=? AND role='admin'", req.user.id)) fail(403, 'Video yüklemek için bir topluluğun yöneticisi olmalısın');
+  const course = one('SELECT community_id FROM courses WHERE id=?', Number(req.body.courseId));
+  if (!course || roleIn(req.user.id, course.community_id) !== 'admin') fail(403, 'Video yüklemek için bu topluluğun yöneticisi olmalısın');
   const ext = /\.(mp4|webm|mov)$/i.exec(String(req.body.name || ''))?.[1].toLowerCase();
   if (!ext) fail(400, 'Desteklenen video türleri: MP4, WebM, MOV');
   const size = Number(req.body.size);
@@ -920,10 +968,13 @@ app.post('/api/video/start', auth, (req, res) => {
   let free = Infinity;
   try { const s = fs.statfsSync(UPLOADS); free = s.bavail * s.bsize; } catch { /* ölçülemezse yüklemeye izin ver */ }
   if (free < size + 100 * 1024 * 1024) fail(507, 'Sunucuda bu video için yeterli depolama alanı yok. YouTube bağlantısı ekleyebilirsin.');
+  // Topluluk başına video depolama kotası: barındırma giderinin kontrolsüz büyümesini önler
+  const uploading = [...pendingVideos.values()].filter(u => u.communityId === course.community_id).reduce((a, u) => a + u.size, 0);
+  if (videoBytes(course.community_id) + uploading + size > VIDEO_QUOTA) fail(400, `Bu topluluğun ${sizeLabel(VIDEO_QUOTA)} video depolama alanı doldu. Eski bir videoyu kaldırabilir ya da YouTube bağlantısı ekleyebilirsin (YouTube videoları kotadan düşmez).`);
   if ([...pendingVideos.values()].filter(u => u.userId === req.user.id).length >= 3) fail(429, 'Aynı anda en fazla 3 video yükleyebilirsin');
   const id = crypto.randomBytes(16).toString('hex'), file = path.join(UPLOADS, id + '.part');
   fs.writeFileSync(file, '');
-  pendingVideos.set(id, { userId: req.user.id, ext, size, got: 0, path: file, at: now() });
+  pendingVideos.set(id, { userId: req.user.id, communityId: course.community_id, ext, size, got: 0, path: file, at: now() });
   res.json({ id, chunk: CHUNK });
 });
 app.put('/api/video/:id', auth, express.raw({ type: () => true, limit: CHUNK + 1024 * 1024 }), (req, res) => {

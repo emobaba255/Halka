@@ -493,3 +493,17 @@ a.file > .ic:last-child { color: var(--muted); }
 .plan.plain { border: 1px solid var(--line); }
 .plan .btn { align-self: end; }
 .checks.cols { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+
+/* Ders sonu testi */
+:root { --ok: #17794a; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --ok: #6fd39b; } }
+:root[data-theme="dark"] { --ok: #6fd39b; }
+.quiz { border-top: 1px solid var(--line); padding-top: 14px; }
+.qz { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 0; min-width: 0; }
+.qz legend { font-weight: 700; padding: 0 6px; }
+.qz label { padding: 5px 4px; border-radius: 8px; }
+.qz label.ok { color: var(--ok); font-weight: 700; }
+.qz label.ok span::after { content: " ✓"; }
+.qz label.bad { color: var(--danger); text-decoration: line-through; }
+.quizout { color: var(--accent); }
+.price span { font-size: 15px; }
