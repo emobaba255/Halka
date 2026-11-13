@@ -1,9 +1,11 @@
 const express = require('express');
 const crypto = require('crypto');
 const path = require('path');
+const fs = require('fs');
 const { db, hashPassword, checkPassword, COLORS, DEFAULT_CATEGORIES } = require('./db');
 
 const app = express();
+app.use('/api/upload', express.json({ limit: '6mb' }));
 app.use(express.json({ limit: '200kb' }));
 
 const all = (sql, ...p) => db.prepare(sql).all(...p);
@@ -22,6 +24,40 @@ function text(v, label, max, min = 1) {
   return s;
 }
 const optText = (v, label, max) => text(v ?? '', label, max, 0);
+
+const IMG_RE = /^\/uploads\/[a-f0-9]{32}\.(png|jpg|webp|gif)$/;
+const img = v => (typeof v === 'string' && IMG_RE.test(v) ? v : '');
+const sha256 = s => crypto.createHash('sha256').update(s).digest('hex');
+function newPassword(v) {
+  const p = typeof v === 'string' ? v : '';
+  if (p.length < 8) fail(400, 'Şifre en az 8 karakter olmalı');
+  if (p.length > 200) fail(400, 'Şifre çok uzun');
+  return p;
+}
+
+// Yüklenen görseller
+const UPLOADS = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
+fs.mkdirSync(UPLOADS, { recursive: true });
+const removeUpload = url => { if (img(url)) fs.unlink(path.join(UPLOADS, path.basename(url)), () => {}); };
+
+// Giriş / şifre sıfırlama için basit deneme sınırı (IP başına 10 dakikada 10 hatalı deneme)
+const attempts = new Map();
+function tooMany(req) {
+  const a = attempts.get(req.ip);
+  if (a && a.until > now() && a.n >= 10) fail(429, 'Çok fazla deneme yaptın. Birkaç dakika sonra tekrar dene.');
+}
+function strike(req) {
+  const a = attempts.get(req.ip);
+  if (!a || a.until < now()) attempts.set(req.ip, { n: 1, until: now() + 10 * 60e3 }); else a.n++;
+}
+setInterval(() => { for (const [k, a] of attempts) if (a.until < now()) attempts.delete(k); }, 60e3).unref();
+
+// E-posta: SMTP_URL tanımlıysa gerçekten gönderilir, değilse sunucu günlüğüne yazılır
+const mailer = process.env.SMTP_URL ? require('nodemailer').createTransport(process.env.SMTP_URL) : null;
+async function sendMail(to, subject, body) {
+  if (!mailer) return console.log(`[E-posta gönderilmedi: SMTP_URL ayarlı değil]\nKime: ${to}\nKonu: ${subject}\n${body}\n`);
+  await mailer.sendMail({ from: process.env.MAIL_FROM || 'Okul <no-reply@localhost>', to, subject, text: body });
+}
 
 const LEVELS = [0, 10, 30, 75, 150, 300, 600, 1200, 2500];
 const LEVEL_NAMES = ['Çaylak', 'Meraklı', 'Katılımcı', 'Destekçi', 'Usta', 'Rehber', 'Öncü', 'Efsane', 'Bilge'];
@@ -46,7 +82,7 @@ function notify(userId, actorId, type, postId, communityId) {
 // ---------- Oturum ----------
 app.use((req, res, next) => {
   const m = /(?:^|;\s*)sid=([a-f0-9]{48})/.exec(req.headers.cookie || '');
-  req.user = m ? one('SELECT u.id,u.name,u.email,u.bio,u.color FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=?', m[1]) || null : null;
+  req.user = m ? one('SELECT u.id,u.name,u.email,u.bio,u.color,u.avatar FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=?', m[1]) || null : null;
   req.sid = m ? m[1] : null;
   next();
 });
@@ -82,9 +118,10 @@ app.post('/api/auth/register', (req, res) => {
   res.json({ ok: true });
 });
 app.post('/api/auth/login', (req, res) => {
+  tooMany(req);
   const email = String(req.body.email || '').trim().toLowerCase();
   const u = one('SELECT id,pass FROM users WHERE email=?', email);
-  if (!u || !checkPassword(String(req.body.password || ''), u.pass)) fail(401, 'E-posta veya şifre hatalı');
+  if (!u || !checkPassword(String(req.body.password || ''), u.pass)) { strike(req); fail(401, 'E-posta veya şifre hatalı'); }
   startSession(res, u.id);
   res.json({ ok: true });
 });
@@ -99,17 +136,97 @@ app.get('/api/me', (req, res) => {
     user: req.user,
     communities: all('SELECT c.slug,c.name,c.emoji,c.color FROM memberships m JOIN communities c ON c.id=m.community_id WHERE m.user_id=? ORDER BY m.joined_at', req.user.id),
     unread: one('SELECT COUNT(*) n FROM notifications WHERE user_id=? AND is_read=0', req.user.id).n,
+    unreadMessages: one('SELECT COUNT(*) n FROM messages WHERE to_id=? AND is_read=0', req.user.id).n,
   });
 });
 app.put('/api/me', auth, (req, res) => {
-  run('UPDATE users SET name=?, bio=? WHERE id=?', text(req.body.name, 'Ad', 60, 2), optText(req.body.bio, 'Hakkında', 300), req.user.id);
+  const avatar = img(req.body.avatar);
+  if (req.user.avatar && req.user.avatar !== avatar) removeUpload(req.user.avatar);
+  run('UPDATE users SET name=?, bio=?, avatar=? WHERE id=?', text(req.body.name, 'Ad', 60, 2), optText(req.body.bio, 'Hakkında', 300), avatar, req.user.id);
+  res.json({ ok: true });
+});
+app.put('/api/me/password', auth, (req, res) => {
+  const u = one('SELECT pass FROM users WHERE id=?', req.user.id);
+  if (!checkPassword(String(req.body.current || ''), u.pass)) fail(400, 'Mevcut şifre hatalı');
+  run('UPDATE users SET pass=? WHERE id=?', hashPassword(newPassword(req.body.next)), req.user.id);
+  run('DELETE FROM sessions WHERE user_id=? AND token<>?', req.user.id, req.sid); // diğer cihazlardan çıkış
+  res.json({ ok: true });
+});
+
+// ---------- Şifre sıfırlama ----------
+app.post('/api/auth/forgot', (req, res) => {
+  tooMany(req); strike(req);
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const u = one('SELECT id FROM users WHERE email=?', email);
+  if (u) {
+    const token = crypto.randomBytes(24).toString('hex');
+    run('DELETE FROM resets WHERE user_id=?', u.id);
+    run('INSERT INTO resets(token,user_id,expires_at) VALUES(?,?,?)', sha256(token), u.id, now() + 3600e3);
+    // Yayında BASE_URL ortam değişkenini sitenin adresiyle ayarla
+    const base = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+    sendMail(email, 'Okul — şifre sıfırlama', `Şifreni sıfırlamak için bu bağlantıyı aç (1 saat geçerli):\n${base}/#/reset/${token}\n\nBu isteği sen yapmadıysan bu e-postayı yok sayabilirsin.`)
+      .catch(e => console.error('E-posta gönderilemedi:', e.message));
+  }
+  res.json({ ok: true, mail: !!mailer }); // hesap var mı yok mu belli edilmez
+});
+app.post('/api/auth/reset', (req, res) => {
+  tooMany(req);
+  const r = one('SELECT user_id FROM resets WHERE token=? AND expires_at>?', sha256(String(req.body.token || '')), now());
+  if (!r) { strike(req); fail(400, 'Bağlantı geçersiz ya da süresi dolmuş'); }
+  run('UPDATE users SET pass=? WHERE id=?', hashPassword(newPassword(req.body.password)), r.user_id);
+  run('DELETE FROM resets WHERE user_id=?', r.user_id);
+  run('DELETE FROM sessions WHERE user_id=?', r.user_id);
+  res.json({ ok: true });
+});
+
+// ---------- Görsel yükleme ----------
+app.post('/api/upload', auth, (req, res) => {
+  const m = /^data:image\/(png|jpeg|webp|gif);base64,([A-Za-z0-9+/=]+)$/.exec(String(req.body.dataUrl || ''));
+  if (!m) fail(400, 'Yalnızca PNG, JPEG, WebP veya GIF yüklenebilir');
+  const buf = Buffer.from(m[2], 'base64');
+  if (buf.length > 4 * 1024 * 1024) fail(400, 'Görsel en fazla 4 MB olabilir');
+  const name = crypto.randomBytes(16).toString('hex') + '.' + (m[1] === 'jpeg' ? 'jpg' : m[1]);
+  fs.writeFileSync(path.join(UPLOADS, name), buf);
+  res.json({ url: '/uploads/' + name });
+});
+app.use('/uploads', express.static(UPLOADS, { maxAge: '30d', setHeaders: res => res.setHeader('X-Content-Type-Options', 'nosniff') }));
+
+// ---------- Özel mesajlar ----------
+// Yalnızca ortak bir topluluğu olan (ya da daha önce yazışmış) kişiler mesajlaşabilir
+const canMessage = (a, b) => a !== b && !!(
+  one('SELECT 1 FROM memberships x JOIN memberships y ON x.community_id=y.community_id WHERE x.user_id=? AND y.user_id=?', a, b) ||
+  one('SELECT 1 FROM messages WHERE (from_id=? AND to_id=?) OR (from_id=? AND to_id=?)', a, b, b, a));
+app.get('/api/messages', auth, (req, res) => {
+  const me = req.user.id;
+  res.json({
+    conversations: all(`SELECT u.id,u.name,u.color,u.avatar,m.body,m.created_at,m.from_id,
+      (SELECT COUNT(*) FROM messages x WHERE x.from_id=u.id AND x.to_id=? AND x.is_read=0) unread
+      FROM messages m JOIN users u ON u.id = CASE WHEN m.from_id=? THEN m.to_id ELSE m.from_id END
+      WHERE m.id IN (SELECT MAX(id) FROM messages WHERE from_id=? OR to_id=? GROUP BY CASE WHEN from_id=? THEN to_id ELSE from_id END)
+      ORDER BY m.id DESC LIMIT 100`, me, me, me, me, me),
+  });
+});
+app.get('/api/messages/:userId', auth, (req, res) => {
+  const other = one('SELECT id,name,color,avatar FROM users WHERE id=?', Number(req.params.userId));
+  if (!other) fail(404, 'Kullanıcı bulunamadı');
+  if (!canMessage(req.user.id, other.id)) fail(403, 'Yalnızca ortak topluluğun olan kişilere mesaj gönderebilirsin');
+  run('UPDATE messages SET is_read=1 WHERE from_id=? AND to_id=? AND is_read=0', other.id, req.user.id);
+  const messages = all(`SELECT id,from_id,body,created_at FROM messages WHERE (from_id=? AND to_id=?) OR (from_id=? AND to_id=?)
+    ORDER BY id DESC LIMIT 200`, req.user.id, other.id, other.id, req.user.id).reverse();
+  res.json({ user: other, messages });
+});
+app.post('/api/messages/:userId', auth, (req, res) => {
+  const other = one('SELECT id FROM users WHERE id=?', Number(req.params.userId));
+  if (!other) fail(404, 'Kullanıcı bulunamadı');
+  if (!canMessage(req.user.id, other.id)) fail(403, 'Yalnızca ortak topluluğun olan kişilere mesaj gönderebilirsin');
+  run('INSERT INTO messages(from_id,to_id,body,created_at) VALUES(?,?,?,?)', req.user.id, other.id, text(req.body.body, 'Mesaj', 4000), now());
   res.json({ ok: true });
 });
 
 // ---------- Bildirimler ----------
 app.get('/api/notifications', auth, (req, res) => {
-  const items = all(`SELECT n.id,n.type,n.is_read,n.created_at,n.post_id,u.name actor_name,u.color actor_color,p.title post_title,c.slug
-    FROM notifications n JOIN users u ON u.id=n.actor_id JOIN posts p ON p.id=n.post_id JOIN communities c ON c.id=n.community_id
+  const items = all(`SELECT n.id,n.type,n.is_read,n.created_at,n.post_id,u.name actor_name,u.color actor_color,u.avatar actor_avatar,p.title post_title,c.slug,c.name community_name
+    FROM notifications n JOIN users u ON u.id=n.actor_id LEFT JOIN posts p ON p.id=n.post_id JOIN communities c ON c.id=n.community_id
     WHERE n.user_id=? ORDER BY n.created_at DESC LIMIT 30`, req.user.id);
   run('UPDATE notifications SET is_read=1 WHERE user_id=?', req.user.id);
   res.json({ items });
@@ -119,7 +236,7 @@ app.get('/api/notifications', auth, (req, res) => {
 app.get('/api/communities', (req, res) => {
   const q = `%${String(req.query.q || '').trim()}%`;
   res.json({
-    items: all(`SELECT c.slug,c.name,c.tagline,c.emoji,c.color,c.category,c.is_private,
+    items: all(`SELECT c.slug,c.name,c.tagline,c.emoji,c.color,c.category,c.is_private,c.price_text,
       (SELECT COUNT(*) FROM memberships m WHERE m.community_id=c.id) members
       FROM communities c WHERE c.name LIKE ? OR c.tagline LIKE ? OR c.category LIKE ? ORDER BY members DESC, c.created_at DESC LIMIT 60`, q, q, q),
   });
@@ -132,22 +249,25 @@ app.post('/api/communities', auth, (req, res) => {
   const emoji = [...optText(req.body.emoji, 'Simge', 8)].slice(0, 2).join('') || '⭕';
   let slug = slugify(name), n = 1;
   while (one('SELECT 1 FROM communities WHERE slug=?', slug)) slug = `${slugify(name)}-${++n}`;
-  const id = Number(run('INSERT INTO communities(slug,name,tagline,description,category,is_private,categories,owner_id,color,emoji,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
-    slug, name, tagline, description, category, req.body.isPrivate ? 1 : 0, JSON.stringify(DEFAULT_CATEGORIES), req.user.id, COLORS[crypto.randomInt(COLORS.length)], emoji, now()).lastInsertRowid);
+  const id = Number(run('INSERT INTO communities(slug,name,tagline,description,category,is_private,price_text,pay_info,categories,owner_id,color,emoji,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    slug, name, tagline, description, category, req.body.isPrivate ? 1 : 0, optText(req.body.priceText, 'Ücret', 40), optText(req.body.payInfo, 'Ödeme bilgisi', 1000), JSON.stringify(DEFAULT_CATEGORIES), req.user.id, COLORS[crypto.randomInt(COLORS.length)], emoji, now()).lastInsertRowid);
   run('INSERT INTO memberships(user_id,community_id,role,joined_at) VALUES(?,?,?,?)', req.user.id, id, 'admin', now());
   res.json({ slug });
 });
 app.get('/api/communities/:slug', loadCommunity, (req, res) => {
   const c = req.c;
   const pts = pointsMap(c.id);
-  const top = all('SELECT u.id,u.name,u.color FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.community_id=?', c.id)
+  const top = all('SELECT u.id,u.name,u.color,u.avatar FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.community_id=?', c.id)
     .map(u => ({ ...u, points: pts.get(u.id) || 0 })).sort((a, b) => b.points - a.points).slice(0, 5)
     .map(u => ({ ...u, level: levelOf(u.points) }));
   const myPoints = req.user ? pts.get(req.user.id) || 0 : 0;
+  const pending = !!req.user && !req.role && !!one('SELECT 1 FROM join_requests WHERE user_id=? AND community_id=?', req.user.id, c.id);
   res.json({
-    community: { slug: c.slug, name: c.name, tagline: c.tagline, description: c.description, category: c.category, is_private: c.is_private, color: c.color, emoji: c.emoji, created_at: c.created_at, categories: JSON.parse(c.categories) },
+    community: { slug: c.slug, name: c.name, tagline: c.tagline, description: c.description, category: c.category, is_private: c.is_private, price_text: c.price_text, pay_info: req.role || pending ? c.pay_info : '', color: c.color, emoji: c.emoji, created_at: c.created_at, categories: JSON.parse(c.categories) },
     role: req.role,
-    owner: one('SELECT id,name,color FROM users WHERE id=?', c.owner_id),
+    pending,
+    requests: req.role === 'admin' ? one('SELECT COUNT(*) n FROM join_requests WHERE community_id=?', c.id).n : 0,
+    owner: one('SELECT id,name,color,avatar FROM users WHERE id=?', c.owner_id),
     stats: {
       members: one('SELECT COUNT(*) n FROM memberships WHERE community_id=?', c.id).n,
       posts: one('SELECT COUNT(*) n FROM posts WHERE community_id=?', c.id).n,
@@ -158,12 +278,41 @@ app.get('/api/communities/:slug', loadCommunity, (req, res) => {
   });
 });
 app.put('/api/communities/:slug', auth, loadCommunity, admin, (req, res) => {
-  run('UPDATE communities SET tagline=?, description=?, is_private=? WHERE id=?',
-    optText(req.body.tagline, 'Kısa tanım', 100), optText(req.body.description, 'Açıklama', 3000), req.body.isPrivate ? 1 : 0, req.c.id);
+  run('UPDATE communities SET tagline=?, description=?, is_private=?, price_text=?, pay_info=? WHERE id=?',
+    optText(req.body.tagline, 'Kısa tanım', 100), optText(req.body.description, 'Açıklama', 3000), req.body.isPrivate ? 1 : 0,
+    optText(req.body.priceText, 'Ücret', 40), optText(req.body.payInfo, 'Ödeme bilgisi', 1000), req.c.id);
   res.json({ ok: true });
 });
+// Açık topluluklara doğrudan katılınır; özel ya da ücretli topluluklarda yönetici onayı gerekir
 app.post('/api/communities/:slug/join', auth, loadCommunity, (req, res) => {
-  if (!req.role) run('INSERT INTO memberships(user_id,community_id,role,joined_at) VALUES(?,?,?,?)', req.user.id, req.c.id, 'member', now());
+  if (req.role) return res.json({ ok: true });
+  if (req.c.is_private || req.c.price_text) {
+    const had = one('SELECT 1 FROM join_requests WHERE user_id=? AND community_id=?', req.user.id, req.c.id);
+    run('INSERT OR REPLACE INTO join_requests(user_id,community_id,note,created_at) VALUES(?,?,?,?)', req.user.id, req.c.id, optText(req.body?.note, 'Not', 300), now());
+    if (!had) for (const a of all("SELECT user_id FROM memberships WHERE community_id=? AND role='admin'", req.c.id)) notify(a.user_id, req.user.id, 'request', 0, req.c.id);
+    return res.json({ pending: true });
+  }
+  run('INSERT INTO memberships(user_id,community_id,role,joined_at) VALUES(?,?,?,?)', req.user.id, req.c.id, 'member', now());
+  res.json({ ok: true });
+});
+app.delete('/api/communities/:slug/join', auth, loadCommunity, (req, res) => {
+  run('DELETE FROM join_requests WHERE user_id=? AND community_id=?', req.user.id, req.c.id);
+  res.json({ ok: true });
+});
+app.post('/api/communities/:slug/requests/:userId', auth, loadCommunity, admin, (req, res) => {
+  const uid = Number(req.params.userId);
+  if (!one('SELECT 1 FROM join_requests WHERE user_id=? AND community_id=?', uid, req.c.id)) fail(404, 'İstek bulunamadı');
+  run('DELETE FROM join_requests WHERE user_id=? AND community_id=?', uid, req.c.id);
+  if (req.body?.approve) {
+    run('INSERT OR IGNORE INTO memberships(user_id,community_id,role,joined_at) VALUES(?,?,?,?)', uid, req.c.id, 'member', now());
+    notify(uid, req.user.id, 'approved', 0, req.c.id);
+  }
+  res.json({ ok: true });
+});
+app.delete('/api/communities/:slug/members/:userId', auth, loadCommunity, admin, (req, res) => {
+  const uid = Number(req.params.userId);
+  if (uid === req.c.owner_id || uid === req.user.id) fail(400, 'Bu üye çıkarılamaz');
+  run('DELETE FROM memberships WHERE user_id=? AND community_id=?', uid, req.c.id);
   res.json({ ok: true });
 });
 app.post('/api/communities/:slug/leave', auth, loadCommunity, member, (req, res) => {
@@ -173,7 +322,7 @@ app.post('/api/communities/:slug/leave', auth, loadCommunity, member, (req, res)
 });
 
 // ---------- Akış ----------
-const POST_SELECT = `SELECT p.id,p.title,p.body,p.category,p.pinned,p.created_at,p.user_id,u.name author_name,u.color author_color,
+const POST_SELECT = `SELECT p.id,p.title,p.body,p.category,p.pinned,p.created_at,p.user_id,p.image,u.name author_name,u.color author_color,u.avatar author_avatar,
   (SELECT COUNT(*) FROM likes l WHERE l.target_type='post' AND l.target_id=p.id) likes,
   (SELECT COUNT(*) FROM comments c WHERE c.post_id=p.id) comments,
   (SELECT COUNT(*) FROM likes l WHERE l.target_type='post' AND l.target_id=p.id AND l.user_id=?) liked
@@ -192,8 +341,8 @@ app.get('/api/communities/:slug/posts', auth, loadCommunity, member, (req, res) 
 app.post('/api/communities/:slug/posts', auth, loadCommunity, member, (req, res) => {
   const cats = JSON.parse(req.c.categories);
   const category = cats.includes(req.body.category) ? req.body.category : cats[0];
-  const id = Number(run('INSERT INTO posts(community_id,user_id,title,body,category,created_at) VALUES(?,?,?,?,?,?)',
-    req.c.id, req.user.id, text(req.body.title, 'Başlık', 140, 3), text(req.body.body, 'İçerik', 8000), category, now()).lastInsertRowid);
+  const id = Number(run('INSERT INTO posts(community_id,user_id,title,body,category,image,created_at) VALUES(?,?,?,?,?,?,?)',
+    req.c.id, req.user.id, text(req.body.title, 'Başlık', 140, 3), text(req.body.body, 'İçerik', 8000), category, img(req.body.image), now()).lastInsertRowid);
   res.json({ id });
 });
 
@@ -208,7 +357,7 @@ app.get('/api/posts/:id', auth, loadPost, member, (req, res) => {
   const cid = req.post.community_id, pts = pointsMap(cid);
   const post = one(`${POST_SELECT} WHERE p.id=?`, req.user.id, req.post.id);
   post.author_level = levelOf(pts.get(post.user_id) || 0);
-  const comments = all(`SELECT c.id,c.parent_id,c.body,c.created_at,c.user_id,u.name author_name,u.color author_color,
+  const comments = all(`SELECT c.id,c.parent_id,c.body,c.created_at,c.user_id,u.name author_name,u.color author_color,u.avatar author_avatar,
     (SELECT COUNT(*) FROM likes l WHERE l.target_type='comment' AND l.target_id=c.id) likes,
     (SELECT COUNT(*) FROM likes l WHERE l.target_type='comment' AND l.target_id=c.id AND l.user_id=?) liked
     FROM comments c JOIN users u ON u.id=c.user_id WHERE c.post_id=? ORDER BY c.created_at`, req.user.id, req.post.id)
@@ -221,6 +370,7 @@ app.delete('/api/posts/:id', auth, loadPost, member, (req, res) => {
   run("DELETE FROM likes WHERE target_type='post' AND target_id=?", req.post.id);
   run('DELETE FROM notifications WHERE post_id=?', req.post.id);
   run('DELETE FROM posts WHERE id=?', req.post.id);
+  removeUpload(req.post.image);
   res.json({ ok: true });
 });
 app.post('/api/posts/:id/pin', auth, loadPost, admin, (req, res) => {
@@ -345,12 +495,13 @@ app.delete('/api/events/:id', auth, (req, res) => {
 app.get('/api/communities/:slug/members', auth, loadCommunity, member, (req, res) => {
   const pts = pointsMap(req.c.id);
   res.json({
-    members: all('SELECT u.id,u.name,u.bio,u.color,m.role,m.joined_at FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.community_id=? ORDER BY m.role, m.joined_at', req.c.id)
+    members: all('SELECT u.id,u.name,u.bio,u.color,u.avatar,m.role,m.joined_at FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.community_id=? ORDER BY m.role, m.joined_at', req.c.id)
       .map(u => ({ ...u, points: pts.get(u.id) || 0, level: levelOf(pts.get(u.id) || 0) })),
+    requests: req.role === 'admin' ? all('SELECT u.id,u.name,u.color,u.avatar,r.note,r.created_at FROM join_requests r JOIN users u ON u.id=r.user_id WHERE r.community_id=? ORDER BY r.created_at', req.c.id) : [],
   });
 });
 app.get('/api/communities/:slug/leaderboard', auth, loadCommunity, member, (req, res) => {
-  const users = all('SELECT u.id,u.name,u.color FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.community_id=?', req.c.id);
+  const users = all('SELECT u.id,u.name,u.color,u.avatar FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.community_id=?', req.c.id);
   const allTime = pointsMap(req.c.id);
   const board = since => {
     const pts = since ? pointsMap(req.c.id, since) : allTime;
@@ -369,14 +520,14 @@ app.get('/api/communities/:slug/leaderboard', auth, loadCommunity, member, (req,
 
 // ---------- Profil ----------
 app.get('/api/users/:id', auth, (req, res) => {
-  const u = one('SELECT id,name,bio,color,created_at FROM users WHERE id=?', Number(req.params.id));
+  const u = one('SELECT id,name,bio,color,avatar,created_at FROM users WHERE id=?', Number(req.params.id));
   if (!u) fail(404, 'Kullanıcı bulunamadı');
   const communities = all('SELECT c.id,c.slug,c.name,c.emoji,c.color,m.role FROM memberships m JOIN communities c ON c.id=m.community_id WHERE m.user_id=? ORDER BY m.joined_at', u.id)
     .map(c => { const pts = one('SELECT COUNT(*) n FROM likes WHERE community_id=? AND author_id=?', c.id, u.id).n; return { ...c, points: pts, level: levelOf(pts) }; });
   // Yalnızca görüntüleyenin de üyesi olduğu toplulukların gönderileri
   const posts = all(`SELECT p.id,p.title,p.created_at,c.slug,c.name community FROM posts p JOIN communities c ON c.id=p.community_id
     WHERE p.user_id=? AND p.community_id IN (SELECT community_id FROM memberships WHERE user_id=?) ORDER BY p.created_at DESC LIMIT 15`, u.id, req.user.id);
-  res.json({ user: u, communities: communities.map(({ id, ...c }) => c), posts });
+  res.json({ user: u, communities: communities.map(({ id, ...c }) => c), posts, canMessage: canMessage(req.user.id, u.id) });
 });
 
 // ---------- Statik dosyalar & hatalar ----------
@@ -384,6 +535,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api', (req, res) => res.status(404).json({ error: 'Bulunamadı' }));
 app.use((err, req, res, next) => {
   if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Geçersiz istek' });
+  if (err.type === 'entity.too.large') return res.status(413).json({ error: 'Gönderilen içerik çok büyük' });
   if (!err.status) console.error(err);
   res.status(err.status || 500).json({ error: err.status ? err.message : 'Sunucu hatası' });
 });

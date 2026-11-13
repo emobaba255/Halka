@@ -9,12 +9,12 @@ db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
 db.exec(`
 CREATE TABLE IF NOT EXISTS users(
   id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE,
-  pass TEXT NOT NULL, bio TEXT DEFAULT '', color TEXT NOT NULL, created_at INTEGER NOT NULL);
+  pass TEXT NOT NULL, bio TEXT DEFAULT '', avatar TEXT DEFAULT '', color TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS sessions(
   token TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS communities(
   id INTEGER PRIMARY KEY, slug TEXT NOT NULL UNIQUE, name TEXT NOT NULL, tagline TEXT DEFAULT '',
-  description TEXT DEFAULT '', category TEXT DEFAULT 'Genel', is_private INTEGER DEFAULT 0,
+  description TEXT DEFAULT '', category TEXT DEFAULT 'Genel', is_private INTEGER DEFAULT 0, price_text TEXT DEFAULT '', pay_info TEXT DEFAULT '',
   categories TEXT NOT NULL, owner_id INTEGER NOT NULL REFERENCES users(id),
   color TEXT NOT NULL, emoji TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS memberships(
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS memberships(
 CREATE TABLE IF NOT EXISTS posts(
   id INTEGER PRIMARY KEY, community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
   user_id INTEGER NOT NULL REFERENCES users(id), title TEXT NOT NULL, body TEXT NOT NULL,
-  category TEXT NOT NULL, pinned INTEGER DEFAULT 0, created_at INTEGER NOT NULL);
+  category TEXT NOT NULL, pinned INTEGER DEFAULT 0, image TEXT DEFAULT '', created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS comments(
   id INTEGER PRIMARY KEY, post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
   user_id INTEGER NOT NULL REFERENCES users(id), parent_id INTEGER, body TEXT NOT NULL, created_at INTEGER NOT NULL);
@@ -50,6 +50,16 @@ CREATE TABLE IF NOT EXISTS events(
 CREATE TABLE IF NOT EXISTS notifications(
   id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, actor_id INTEGER NOT NULL, type TEXT NOT NULL,
   post_id INTEGER NOT NULL, community_id INTEGER NOT NULL, is_read INTEGER DEFAULT 0, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS join_requests(
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+  note TEXT DEFAULT '', created_at INTEGER NOT NULL, PRIMARY KEY(user_id, community_id));
+CREATE TABLE IF NOT EXISTS messages(
+  id INTEGER PRIMARY KEY, from_id INTEGER NOT NULL, to_id INTEGER NOT NULL, body TEXT NOT NULL,
+  is_read INTEGER DEFAULT 0, created_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS messages_pair ON messages(from_id, to_id);
+CREATE TABLE IF NOT EXISTS resets(
+  token TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires_at INTEGER NOT NULL);
 `);
 
 const COLORS = ['#0e7a6d', '#b4531f', '#5b4bc4', '#a8325e', '#2f6fb3', '#7a6a12', '#3d7d3a', '#8a4fb0'];
@@ -96,6 +106,14 @@ function seed() {
     'Kod Kampı, web geliştirmeyi proje üreterek öğrenmek isteyenlerin buluşma noktası.\n\nSoru sor, kodunu paylaş, haftalık meydan okumalara katıl.', 'Yazılım', '💻', '#2f6fb3', U[2]);
   const c3 = mkCommunity('sabah-kosuculari', 'Sabah Koşucuları', 'Güne koşarak başlayanların kulübü',
     'Her sabah 06:30. Tempo fark etmez, önemli olan çıkmak.\n\nAntrenman planları, yarış takvimi ve bolca motivasyon.', 'Spor', '🏃', '#b4531f', U[4], 1);
+
+  db.prepare('UPDATE communities SET price_text=?, pay_info=? WHERE id=?').run('₺150 / ay',
+    'Üyelik ücretini aşağıdaki hesaba gönderip açıklamaya adını yaz. Ödemen görülünce isteğin onaylanır.\n\nIBAN: TR00 0000 0000 0000 0000 0000 00 (örnek)\nAlıcı: Sabah Koşucuları', c3);
+  const msg = (from, to, body, hoursAgo, read = 1) => ins('INSERT INTO messages(from_id,to_id,body,is_read,created_at) VALUES(?,?,?,?,?)', from, to, body, read, now - hoursAgo * H);
+  msg(U[1], U[0], 'Merhaba Deniz, atölyeye hoş geldin! Takıldığın bir yer olursa yazabilirsin.', 30);
+  msg(U[0], U[1], 'Teşekkürler Elif! İlk üç dersi bitirdim, çok faydalı.', 29);
+  msg(U[1], U[0], 'Harika 👏 Perşembe günkü eleştiri oturumuna işini getirmek ister misin?', 2, 0);
+  msg(U[3], U[0], 'Karanlık tema paylaşımın çok iyiydi, dosyayı görebilir miyim?', 6, 0);
 
   const join = (u, c, role, daysAgo) => ins('INSERT INTO memberships(user_id,community_id,role,joined_at) VALUES(?,?,?,?)', u, c, role, now - daysAgo * D);
   U.forEach((u, i) => join(u, c1, u === U[1] ? 'admin' : 'member', 48 - i * 3));
