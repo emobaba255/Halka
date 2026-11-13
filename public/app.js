@@ -18,6 +18,12 @@ const go = hash => { if (location.hash === hash) route(); else location.hash = h
 
 // ---------- Simgeler, logo, onay penceresi ----------
 const ICONS = {
+  camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+  rotr: '<path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>',
+  rotl: '<path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>',
+  award: '<circle cx="12" cy="8" r="7"/><path d="M8.21 13.89 7 23l5-3 5 3-1.21-9.12"/>',
   mail: '<path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="m22 6-10 7L2 6"/>',
   bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
   like: '<path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>',
@@ -106,7 +112,7 @@ function renderTop() {
       <button class="btn sm" data-act="menu" data-menu="comm" aria-expanded="${S.menu === 'comm'}"><span class="hide-sm">Topluluklarım</span><span class="only-sm">Topluluklar</span><span class="only-xs" aria-label="Topluluklar">${ic('users')}</span> ▾</button>
       ${S.menu === 'comm' ? `<div class="menu left">
         ${S.communities.map(c => `<a href="#/c/${esc(c.slug)}"><span class="cicon" style="--c:${esc(c.color)}">${esc(c.emoji)}</span><span class="grow">${esc(c.name)}</span></a>`).join('') || '<div class="muted small" style="padding:10px">Henüz bir topluluğa katılmadın.</div>'}
-        <hr><a href="#/">${ic('search')} Toplulukları keşfet</a><a href="#/new">${ic('plus')} Topluluk kur</a></div>` : ''}
+        <hr><a href="#/">${ic('search')} Toplulukları keşfet</a></div>` : ''}
     </div>` : '';
   const right = u ? `
     <a class="iconbtn" href="#/m" aria-label="Mesajlar">${ic('mail')}${S.unreadMessages ? `<span class="dot">${S.unreadMessages}</span>` : ''}</a>
@@ -118,9 +124,9 @@ function renderTop() {
       <button class="iconbtn" style="border:0;padding:0" data-act="menu" data-menu="user" aria-label="Hesap menüsü">${avatar(u.name, u.color, 0, '', u.avatar)}</button>
       ${S.menu === 'user' ? `<div class="menu right">
         <div style="padding:8px 10px"><b>${esc(u.name)}</b><div class="muted small">${esc(u.email)}</div></div><hr>
-        <a href="#/u/${u.id}">${ic('user')} Profilim</a><a href="#/m">${ic('mail')} Mesajlar</a><a href="#/new">${ic('plus')} Topluluk kur</a>
+        <a href="#/u/${u.id}">${ic('user')} Profilim</a><a href="#/settings">${ic('edit')} Profil ayarları</a><a href="#/m">${ic('mail')} Mesajlar</a><hr><a href="#/teach">${ic('award')} Eğitim ver</a>
         <button class="item" data-act="logout">${ic('logout')} Çıkış yap</button></div>` : ''}
-    </div>` : `<a class="btn ghost" href="#/login">Giriş yap</a><a class="btn primary" href="#/register">Kayıt ol</a>`;
+    </div>` : `<a class="btn ghost hide-sm" href="#/teach">Eğitim ver</a><a class="btn ghost" href="#/login">Giriş yap</a><a class="btn primary" href="#/register">Kayıt ol</a>`;
   $('#top').innerHTML = `<div class="wrap row topbar"><a class="logo" href="#/" aria-label="Okul ana sayfa">${logoMark()}<span>Okul</span></a>${switcher}<span class="grow"></span>${right}</div>`;
 }
 function renderNotes() {
@@ -140,7 +146,7 @@ async function refreshMe() {
   const me = await api('/me');
   Object.assign(S, { user: me.user, communities: me.communities, unread: me.unread, unreadMessages: me.unreadMessages || 0 });
 }
-let routeSeq = 0;
+let routeSeq = 0, lastHash = null;
 async function route() {
   const seq = ++routeSeq;
   document.body.classList.add('loading');
@@ -156,14 +162,18 @@ async function route() {
     else if (a === 'forgot') html = viewForgot();
     else if (a === 'reset') html = viewReset(b || '');
     else if (a === 'i') html = await viewInvite(b || '');
+    else if (a === 'teach') html = viewTeach();
     else if (!S.user && a !== 'c') return go('#/login');
     else if (a === 'new') html = viewNew();
+    else if (a === 'settings') html = viewSettings();
     else if (a === 'u') html = await viewProfile(b);
     else if (a === 'm') html = await viewMessages(b);
     else if (a === 'c') html = await viewCommunity(b, c, d, e);
     else html = '<div class="wrap empty">Sayfa bulunamadı.</div>';
     if (seq !== routeSeq) return;
     app.innerHTML = html;
+    // Başka bir sayfaya geçildiyse en üste dön; aynı sayfa yenileniyorsa (beğeni, oy vb.) konumu koru
+    if (location.hash !== lastHash) { lastHash = location.hash; window.scrollTo(0, 0); }
     for (const th of document.querySelectorAll('.thread')) th.scrollTop = th.scrollHeight;
   } catch (err) {
     if (seq !== routeSeq) return;
@@ -174,33 +184,79 @@ async function route() {
   }
 }
 
-// ---------- Keşfet ----------
-let discoverQ = '';
+// ---------- Ana sayfa (öğrenmek isteyenler için) ----------
+let discoverQ = '', discoverCat = '';
+const feature = (icon, title, text) => `<div class="feature"><span class="ficon">${ic(icon)}</span><div><b>${title}</b><p class="small">${text}</p></div></div>`;
+const step = (n, title, text) => `<div class="step"><span>${n}</span><div><b>${title}</b><p class="small muted">${text}</p></div></div>`;
+function communityCard(c) {
+  return `<a class="card ccard" href="#/c/${esc(c.slug)}">
+    <div class="band" ${c.cover ? `style="background-image:url('${esc(c.cover)}')"` : ''}>${c.live ? '<em class="tag live-tag">● CANLI</em>' : ''}<span>${esc(c.emoji)}</span></div>
+    <div class="body stack">
+      <div><h3>${esc(c.name)}</h3><p class="muted small">${esc(c.tagline)}</p></div>
+      <div class="row small muted" style="flex-wrap:wrap"><span class="tag">${esc(c.category)}</span><span>${ic('users')} ${c.members} üye</span><span>${ic('book')} ${c.courses} kurs</span>${c.price_text ? `<span class="tag gold">${esc(c.price_text)}</span>` : '<span class="tag">Ücretsiz</span>'}</div>
+    </div></a>`;
+}
 async function viewDiscover() {
-  const { items } = await api('/communities?q=' + encodeURIComponent(discoverQ));
-  const feature = (icon, title, text) => `<div class="feature"><span class="ficon">${ic(icon)}</span><div><b>${title}</b><p class="small">${text}</p></div></div>`;
+  const qs = new URLSearchParams();
+  if (discoverQ) qs.set('q', discoverQ);
+  if (discoverCat) qs.set('category', discoverCat);
+  const { items } = await api('/communities?' + qs);
   const landing = S.user ? '' : `<section class="landing"><div class="wrap">
       <div class="brand">${logoMark('xl')}<span>Okul</span></div>
-      <h1>Topluluğunu ve kurslarını<br>tek bir yerde topla</h1>
-      <p>Tartışmalar, dersler, canlı yayınlar ve üyeleri motive eden bir seviye sistemi. Bir topluluğa katıl ya da kendininkini dakikalar içinde kur.</p>
-      <div class="row cta"><a class="btn gold lg" href="#/register">Ücretsiz başla</a><a class="btn ghostlight lg" href="#/login">Giriş yap</a></div>
+      <h1>Öğrenmek istediğin her şey,<br>seninle öğrenen bir toplulukla</h1>
+      <p>Kurslara katıl, takıldığın yerde sor, canlı derslere gir. Kendi hızında ama yalnız kalmadan öğren.</p>
+      <form class="search row hero-search" data-form="discover"><input type="search" name="q" placeholder="Ne öğrenmek istiyorsun?" value="${esc(discoverQ)}" aria-label="Ne öğrenmek istiyorsun?"><button class="btn gold">${ic('search')} Ara</button></form>
+      <div class="row cta"><a class="btn gold lg" href="#/register">Ücretsiz katıl</a><a class="btn ghostlight lg" href="#/login">Giriş yap</a></div>
       <div class="features">
-        ${feature('users', 'Topluluk', 'Gönderi, yorum, anket ve özel mesajlarla üyelerini bir araya getir.')}
-        ${feature('book', 'Kurslar', 'Derslerini bölümlere ayır, video ve dosya ekle, ilerlemeyi takip et.')}
-        ${feature('video', 'Canlı yayın', 'Yayınını toplulukta göster, üyelerinle anlık sohbet et.')}
-        ${feature('card', 'Üyelik geliri', 'Aylık ya da tek seferlik üyelik ücretini kendin belirle.')}
-      </div></div></section>`;
-  return `${landing}<div class="wrap">
-    <div class="row spread" style="margin:28px 0 14px;flex-wrap:wrap"><div><h2>Toplulukları keşfet</h2><p class="small muted">İlgini çeken bir topluluğa katıl.</p></div>${S.user ? `<a class="btn primary" href="#/new">${ic('plus')} Topluluk kur</a>` : ''}</div>
-    <form class="search row" data-form="discover" style="margin-bottom:18px"><input type="search" name="q" placeholder="Topluluk ara…" value="${esc(discoverQ)}" aria-label="Topluluk ara"><button class="btn primary">${ic('search')}<span class="hide-sm"> Ara</span></button></form>
-    <div class="grid">${items.map(c => `
-      <a class="card ccard" href="#/c/${esc(c.slug)}">
-        <div class="band" ${c.cover ? `style="background-image:url('${esc(c.cover)}')"` : ''}>${c.live ? '<em class="tag live-tag">● CANLI</em>' : ''}<span>${esc(c.emoji)}</span></div>
-        <div class="body stack">
-          <div><h3>${esc(c.name)}</h3><p class="muted small">${esc(c.tagline)}</p></div>
-          <div class="row small muted" style="flex-wrap:wrap"><span class="tag">${esc(c.category)}</span><span>${ic('users')} ${c.members} üye</span><span>${c.is_private ? ic('lock') + ' Özel' : ic('globe') + ' Açık'}</span>${c.price_text ? `<span class="tag gold">${esc(c.price_text)}</span>` : ''}</div>
-        </div></a>`).join('') || '<div class="empty" style="grid-column:1/-1">Aramana uyan topluluk bulunamadı.</div>'}
-    </div></div>`;
+        ${feature('book', 'Adım adım kurslar', 'Bölümlere ayrılmış dersler, videolar ve dosyalar. Kaldığın yerden devam et.')}
+        ${feature('users', 'Soru sor, birlikte öğren', 'Takıldığında topluluğa yaz; eğitmen ve diğer öğrenciler yanıtlasın.')}
+        ${feature('video', 'Canlı dersler', 'Canlı yayınlara katıl, sohbetten anında soru sor.')}
+        ${feature('award', 'Seviye atla', 'Katkıların puan kazandırır; seviyen yükseldikçe yeni kurslar açılır.')}
+      </div></div></section>
+    <section class="wrap"><div class="steps">
+      ${step(1, 'Topluluğunu seç', 'İlgi alanına uygun bir topluluğa katıl.')}
+      ${step(2, 'Derslere başla', 'Kursları kendi hızında takip et, ilerlemeni gör.')}
+      ${step(3, 'Paylaş ve ilerle', 'Soru sor, işini paylaş, canlı derslere katıl.')}
+    </div></section>`;
+  const mine = S.user ? `<div class="wrap"><div style="margin:28px 0 14px"><h2>Merhaba ${esc(S.user.name.split(' ')[0])}, öğrenmeye devam et</h2><p class="small muted">Üyesi olduğun topluluklar</p></div>
+      ${S.communities.length ? `<div class="mine">${S.communities.map(c => `<a class="card row" href="#/c/${esc(c.slug)}"><span class="cicon lg">${esc(c.emoji)}</span><span class="grow"><b>${esc(c.name)}</b><br><span class="small" style="color:var(--accent);font-weight:600">Devam et →</span></span></a>`).join('')}</div>`
+        : '<div class="card empty">Henüz bir topluluğa katılmadın. Aşağıdan ilgini çeken birini seç.</div>'}</div>` : '';
+  return `${landing}${mine}<div class="wrap" id="kesfet">
+    <div style="margin:30px 0 14px"><h2>Toplulukları keşfet</h2><p class="small muted">İlgini çeken konuyu seç, hemen öğrenmeye başla.</p></div>
+    <div class="filters" style="margin-bottom:12px">${['', ...CATEGORY_LIST.slice(1)].map(k => `<button class="chip ${discoverCat === k ? 'on' : ''}" data-act="discoverCat" data-v="${esc(k)}">${esc(k || 'Tümü')}</button>`).join('')}</div>
+    ${S.user ? `<form class="search row" data-form="discover" style="margin-bottom:18px"><input type="search" name="q" placeholder="Topluluk ya da konu ara…" value="${esc(discoverQ)}" aria-label="Topluluk ara"><button class="btn primary">${ic('search')}<span class="hide-sm"> Ara</span></button></form>` : ''}
+    <div class="grid">${items.map(communityCard).join('') || '<div class="card empty" style="grid-column:1/-1">Bu aramaya uyan topluluk bulunamadı.</div>'}</div>
+    <a class="teachband card" href="#/teach"><span class="ficon">${ic('award')}</span><span class="grow"><b>Eğitmen misin?</b><br><span class="small muted">Bildiğini öğret: kendi topluluğunu ve kurslarını oluştur.</span></span><span class="btn">Eğitim ver →</span></a>
+  </div>`;
+}
+
+// ---------- Eğitim ver (eğitmenler için) ----------
+function viewTeach() {
+  const f = (icon, title, text) => `<div class="card tfeature"><span class="ficon">${ic(icon)}</span><div><b>${title}</b><p class="small muted">${text}</p></div></div>`;
+  return `<section class="teach-hero"><div class="wrap">
+      <span class="tag gold">Eğitmenler için</span>
+      <h1>Bildiğini öğret,<br>topluluğunu büyüt</h1>
+      <p class="muted">Kurslarını, öğrencilerini ve canlı derslerini tek bir yerden yönet. Kurulumu birkaç dakika sürer.</p>
+      <div class="row cta"><button class="btn primary lg" data-act="teachStart">Topluluğunu kur</button><a class="btn lg" href="#/">Önce toplulukları gez</a></div>
+    </div></section>
+    <div class="wrap stack" style="padding-bottom:20px">
+      <div class="tgrid">
+        ${f('book', 'Kurslar', 'Derslerini bölümlere ayır, video ve dosya ekle. İstersen kursları belirli bir seviyeye ulaşanlara aç.')}
+        ${f('users', 'Topluluk akışı', 'Duyuru, soru-cevap ve anketlerle öğrencilerinle aynı yerde ol.')}
+        ${f('video', 'Canlı yayın', 'Canlı dersini toplulukta göster; öğrenciler sohbetten soru sorsun.')}
+        ${f('card', 'Üyelik geliri', 'Ücretsiz, aylık ya da tek seferlik üyelik. Ücreti ve ödeme bilgisini sen belirlersin.')}
+        ${f('settings', 'Yönetim paneli', 'Üyeler, istekler, süreler, istatistikler ve tüm ayarlar tek panelde.')}
+        ${f('link', 'Davet bağlantısı', 'Öğrencilerini tek bir bağlantıyla topluluğuna getir.')}
+      </div>
+      <div><h2>Nasıl başlarım?</h2></div>
+      <div class="steps">
+        ${step(1, 'Topluluğunu kur', 'Ad, açıklama ve üyelik türünü seç.')}
+        ${step(2, 'İçeriğini ekle', 'Kurslarını ve ilk duyurunu oluştur.')}
+        ${step(3, 'Öğrencilerini davet et', 'Davet bağlantını paylaş, isteklerini panelden yönet.')}
+      </div>
+      <div class="card notice small">Ödemeler doğrudan senin hesabına yapılır: üye ödeme bilgini görür, ödemeyi aldığında üyeliği panelden onaylarsın. Kartla otomatik tahsilat henüz yok.</div>
+      <div style="text-align:center;padding:10px 0 20px"><button class="btn primary lg" data-act="teachStart">Topluluğunu kur</button></div>
+    </div>`;
 }
 
 // ---------- Giriş / kayıt ----------
@@ -223,53 +279,154 @@ function viewAuth(mode) {
 
 // ---------- Topluluk kur ----------
 function viewNew() {
-  return `<div class="wrap"><div class="card narrow stack">
-    <h2>Yeni topluluk kur</h2>
-    <form class="stack" data-form="newCommunity">
-      <div class="row" style="align-items:flex-end">
-        <div style="width:80px"><label for="n-emoji">Simge</label><input id="n-emoji" type="text" name="emoji" value="🎓" maxlength="4"></div>
-        <div class="grow"><label for="n-name">Topluluk adı</label><input id="n-name" type="text" name="name" required minlength="3" maxlength="50"></div>
-      </div>
-      <div><label for="n-tag">Kısa tanım</label><input id="n-tag" type="text" name="tagline" maxlength="100" placeholder="Tek cümleyle topluluğun ne hakkında?"></div>
-      <div><label for="n-cat">Kategori</label><select id="n-cat" name="category">${CATEGORY_LIST.map(c => `<option>${c}</option>`).join('')}</select></div>
-      <div><label for="n-desc">Açıklama</label><textarea id="n-desc" name="description" maxlength="3000" rows="5"></textarea></div>
-      <label class="check"><input type="checkbox" name="isPrivate"> Özel topluluk (katılmak için yönetici onayı gerekir)</label>
-      <div class="row" style="align-items:flex-end"><div class="grow"><label for="n-ptype">Üyelik türü</label><select id="n-ptype" name="priceType"><option value="free">Ücretsiz</option><option value="monthly">Aylık ücretli</option><option value="once">Tek seferlik ücretli</option></select></div>
-        <div style="width:130px"><label for="n-price">Ücret (₺)</label><input id="n-price" type="number" name="priceAmount" min="1" max="1000000" step="1" placeholder="200"></div></div>
-      <div><label for="n-pay">Ödeme bilgisi (istek gönderenlere gösterilir)</label><textarea id="n-pay" name="payInfo" maxlength="1000" rows="2" placeholder="IBAN, ödeme bağlantısı ya da talimatlar"></textarea></div>
-      <button class="btn primary">Topluluğu kur</button>
-    </form></div></div>`;
+  return `<div class="wrap"><div class="newgrid">
+    <div class="card stack">
+      <div><h2>Yeni topluluk kur</h2><p class="small muted">Bilgileri sonradan yönetim panelinden değiştirebilirsin.</p></div>
+      <form class="stack" data-form="newCommunity">
+        <div class="row" style="align-items:flex-end">
+          <div style="width:80px"><label for="n-emoji">Simge</label><input id="n-emoji" type="text" name="emoji" value="🎓" maxlength="4"></div>
+          <div class="grow"><label for="n-name">Topluluk adı</label><input id="n-name" type="text" name="name" required minlength="3" maxlength="50" placeholder="Örn. İngilizce Konuşma Kulübü"></div>
+        </div>
+        <div><label for="n-tag">Kısa tanım</label><input id="n-tag" type="text" name="tagline" maxlength="100" placeholder="Tek cümleyle: burada ne öğrenilir?"></div>
+        <div><label for="n-cat">Kategori</label><select id="n-cat" name="category">${CATEGORY_LIST.map(c => `<option>${c}</option>`).join('')}</select></div>
+        <div><label for="n-desc">Açıklama</label><textarea id="n-desc" name="description" maxlength="3000" rows="5" placeholder="Kimler için? Neler öğrenilecek? Nasıl ilerlenecek?"></textarea></div>
+        <label class="check"><input type="checkbox" name="isPrivate"> Özel topluluk (katılmak için yönetici onayı gerekir)</label>
+        <div class="row" style="align-items:flex-end"><div class="grow"><label for="n-ptype">Üyelik türü</label><select id="n-ptype" name="priceType"><option value="free">Ücretsiz</option><option value="monthly">Aylık ücretli</option><option value="once">Tek seferlik ücretli</option></select></div>
+          <div style="width:130px"><label for="n-price">Ücret (₺)</label><input id="n-price" type="number" name="priceAmount" min="1" max="1000000" step="1" placeholder="200"></div></div>
+        <div><label for="n-pay">Ödeme bilgisi (istek gönderenlere gösterilir)</label><textarea id="n-pay" name="payInfo" maxlength="1000" rows="2" placeholder="IBAN, ödeme bağlantısı ya da talimatlar"></textarea></div>
+        <button class="btn primary lg">Topluluğu kur</button>
+      </form></div>
+    <div class="stack newpreview"><p class="small muted" style="font-weight:600">Keşfet sayfasında böyle görünecek</p>
+      <div class="card ccard" style="pointer-events:none">
+        <div class="band"><span id="nvEmoji">🎓</span></div>
+        <div class="body stack">
+          <div><h3 id="nvName">Topluluk adı</h3><p class="muted small" id="nvTag">Kısa tanımın burada görünür</p></div>
+          <div class="row small muted" style="flex-wrap:wrap"><span class="tag" id="nvCat">Genel</span><span>${ic('users')} 1 üye</span><span class="tag gold" id="nvPrice">Ücretsiz</span></div>
+        </div></div>
+      <p class="small muted">Kapak görselini topluluğu kurduktan sonra yönetim panelinden ekleyebilirsin.</p></div>
+  </div></div>`;
 }
 
 // ---------- Profil ----------
 async function viewProfile(id) {
   const { user: u, communities, posts, canMessage } = await api('/users/' + encodeURIComponent(id));
-  const mine = u.id === S.user.id;
+  const mine = u.id === S.user.id, pts = communities.reduce((a, c) => a + c.points, 0);
+  let host = '';
+  try { host = u.link ? new URL(u.link).hostname.replace(/^www\./, '') : ''; } catch { /* bozuk bağlantı gösterilmez */ }
   return `<div class="wrap"><div class="narrow stack">
-    <div class="card stack">
-      <div class="row" style="flex-wrap:wrap">${avatar(u.name, u.color, 0, 'lg', u.avatar)}<div class="grow"><h2>${esc(u.name)}</h2><p class="muted small">${fmtDate(u.created_at, { month: 'long', year: 'numeric' })} tarihinden beri üye</p></div>
-        ${!mine && canMessage ? `<a class="btn primary" href="#/m/${u.id}">${ic('mail')} Mesaj gönder</a>` : ''}</div>
-      <p class="body-text">${rich(u.bio) || '<span class="muted">Henüz bir şey yazılmamış.</span>'}</p>
-      ${mine ? `<details class="adminbox"><summary class="btn sm">Profili düzenle</summary>
-        <form class="stack" data-form="profile">
-          <div><label for="p-name">Ad Soyad</label><input id="p-name" type="text" name="name" value="${esc(u.name)}" required minlength="2" maxlength="60"></div>
-          <div><label for="p-bio">Hakkında</label><textarea id="p-bio" name="bio" maxlength="300">${esc(u.bio)}</textarea></div>
-          <div><label for="p-photo">Profil fotoğrafı</label><input id="p-photo" type="file" name="photo" accept="image/png,image/jpeg,image/webp"></div>
-          ${u.avatar ? '<label class="check"><input type="checkbox" name="removePhoto"> Fotoğrafı kaldır</label>' : ''}
-          <button class="btn primary">Kaydet</button></form></details>
-      <details class="adminbox"><summary class="btn sm">Şifre değiştir</summary>
-        <form class="stack" data-form="password">
-          <div><label for="pw-cur">Mevcut şifre</label><input id="pw-cur" type="password" name="current" required autocomplete="current-password"></div>
-          <div><label for="pw-new">Yeni şifre</label><input id="pw-new" type="password" name="next" required minlength="8" autocomplete="new-password"></div>
-          <div><label for="pw-again">Yeni şifre (tekrar)</label><input id="pw-again" type="password" name="again" required minlength="8" autocomplete="new-password"></div>
-          <button class="btn primary">Şifreyi güncelle</button></form></details>` : ''}
+    <div class="card profile">
+      <div class="profile-band"></div>
+      <div class="profile-head">${avatar(u.name, u.color, 0, 'xl', u.avatar)}
+        <div class="row" style="flex-wrap:wrap">${mine ? `<a class="btn" href="#/settings">${ic('edit')} Profili düzenle</a>` : canMessage ? `<a class="btn primary" href="#/m/${u.id}">${ic('mail')} Mesaj gönder</a>` : ''}</div></div>
+      <div class="stack">
+        <div><h1>${esc(u.name)}</h1>${u.title ? `<p style="font-weight:600">${esc(u.title)}</p>` : ''}
+          <p class="muted small">${fmtDate(u.created_at, { month: 'long', year: 'numeric' })} tarihinden beri üye${host ? ` · <a href="${esc(u.link)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent);font-weight:600">${ic('link')} ${esc(host)}</a>` : ''}</p></div>
+        <p class="body-text">${rich(u.bio) || `<span class="muted">${mine ? 'Kendinden kısaca bahset; profilini düzenleyerek ekleyebilirsin.' : 'Henüz bir şey yazılmamış.'}</span>`}</p>
+        <div class="stats small"><div><b>${communities.length}</b><span class="muted">topluluk</span></div><div><b>${pts}</b><span class="muted">puan</span></div><div><b>${posts.length}</b><span class="muted">gönderi</span></div></div>
+      </div>
     </div>
     <div class="card stack"><h3>Topluluklar</h3>
-      ${communities.map(c => `<a class="row" href="#/c/${esc(c.slug)}"><span class="cicon" style="--c:${esc(c.color)}">${esc(c.emoji)}</span><span class="grow">${esc(c.name)} ${c.role === 'admin' ? '<span class="tag gold">Yönetici</span>' : ''}</span><span class="small muted">Seviye ${c.level} · ${c.points} puan</span></a>`).join('') || '<p class="muted">Henüz topluluk yok.</p>'}
+      ${communities.map(c => `<a class="row" href="#/c/${esc(c.slug)}"><span class="cicon">${esc(c.emoji)}</span><span class="grow">${esc(c.name)} ${c.role === 'admin' ? '<span class="tag gold">Yönetici</span>' : ''}</span><span class="small muted">Seviye ${c.level} · ${c.points} puan</span></a>`).join('') || '<p class="muted">Henüz topluluk yok.</p>'}
     </div>
     <div class="card stack"><h3>Son gönderiler</h3>
       ${posts.map(p => `<a class="row" href="#/c/${esc(p.slug)}/p/${p.id}"><span class="grow"><b>${esc(p.title)}</b><br><span class="small muted">${esc(p.community)} · ${ago(p.created_at)}</span></span></a>`).join('') || '<p class="muted">Ortak topluluklarınızda gönderi yok.</p>'}
     </div></div></div>`;
+}
+
+// ---------- Profil ayarları ----------
+function viewSettings() {
+  const u = S.user;
+  return `<div class="wrap"><div class="narrow stack">
+    <div class="row spread" style="flex-wrap:wrap"><h1>Profil ayarları</h1><a class="btn" href="#/u/${u.id}">Profilimi gör</a></div>
+    <div class="card stack"><h3>Profil fotoğrafı</h3>
+      <div class="row" style="flex-wrap:wrap;gap:18px">${avatar(u.name, u.color, 0, 'xl', u.avatar)}
+        <div class="stack grow" style="min-width:200px"><p class="small muted">Fotoğrafını seçince kırpma ekranı açılır: sürükleyerek konumlandır, yakınlaştır, döndür. Kaydetmeden önce nasıl görüneceğini görürsün.</p>
+          <div class="row" style="flex-wrap:wrap"><label class="btn primary">${ic('camera')} ${u.avatar ? 'Fotoğrafı değiştir' : 'Fotoğraf yükle'}<input type="file" accept="image/png,image/jpeg,image/webp" data-pick="avatar" hidden></label>
+            ${u.avatar ? '<button class="btn danger" data-act="removeAvatar">Kaldır</button>' : ''}</div></div></div></div>
+    <form class="card stack" data-form="profile"><h3>Bilgiler</h3>
+      <div><label for="p-name">Ad Soyad</label><input id="p-name" type="text" name="name" value="${esc(u.name)}" required minlength="2" maxlength="60" autocomplete="name"></div>
+      <div><label for="p-title">Unvan</label><input id="p-title" type="text" name="title" value="${esc(u.title)}" maxlength="60" placeholder="Örn. Grafik tasarım öğrencisi"></div>
+      <div><label for="p-bio">Hakkında <span class="muted" id="bioCount" style="font-weight:400">${(u.bio || '').length}/300</span></label><textarea id="p-bio" name="bio" maxlength="300" rows="4" placeholder="Neyle ilgileniyorsun, ne öğrenmek istiyorsun?">${esc(u.bio)}</textarea></div>
+      <div><label for="p-link">Web sitesi ya da sosyal medya bağlantısı</label><input id="p-link" type="text" name="link" value="${esc(u.link)}" maxlength="200" placeholder="ornek.com" inputmode="url" autocapitalize="off"></div>
+      <div><p class="small muted" style="font-weight:600;margin-bottom:6px">Başkalarına böyle görünür</p>
+        <div class="pcard row" style="align-items:flex-start">${avatar(u.name, u.color, 0, '', u.avatar)}<div class="grow"><b id="pvName">${esc(u.name)}</b><div class="small" id="pvTitle" style="font-weight:600">${esc(u.title)}</div><div class="small muted body-text" id="pvBio">${esc(u.bio)}</div></div></div></div>
+      <div><button class="btn primary">Bilgileri kaydet</button></div></form>
+    <form class="card stack" data-form="password"><h3>Şifre</h3>
+      <div><label for="pw-cur">Mevcut şifre</label><input id="pw-cur" type="password" name="current" required autocomplete="current-password"></div>
+      <div><label for="pw-new">Yeni şifre</label><input id="pw-new" type="password" name="next" required minlength="8" autocomplete="new-password"></div>
+      <div><label for="pw-again">Yeni şifre (tekrar)</label><input id="pw-again" type="password" name="again" required minlength="8" autocomplete="new-password"></div>
+      <div><button class="btn primary">Şifreyi güncelle</button></div></form>
+    <div class="card row spread" style="flex-wrap:wrap"><div><h3>Hesap</h3><p class="small muted">${esc(u.email)}</p></div><button class="btn" data-act="logout">${ic('logout')} Çıkış yap</button></div>
+  </div></div>`;
+}
+
+// ---------- Fotoğraf kırpma ----------
+// Seçilen görseli sürükleme, yakınlaştırma ve döndürmeyle konumlandırır; onayda kırpılmış JPEG'i (data URL) döndürür.
+function cropImage(file, { aspect = 1, round = true, outW = 400, title = 'Fotoğrafı düzenle' } = {}) {
+  return new Promise(done => {
+    if (!file || !/^image\/(png|jpeg|webp)$/.test(file.type)) { toast('Yalnızca PNG, JPEG veya WebP yüklenebilir'); return done(null); }
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onerror = () => { URL.revokeObjectURL(url); toast('Görsel okunamadı'); done(null); };
+    im.onload = () => {
+      const VW = Math.min(round ? 300 : 440, innerWidth - 76), VH = Math.round(VW / aspect), dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const st = { zoom: 1, rot: 0, ox: 0, oy: 0 };
+      const d = document.createElement('dialog');
+      d.className = 'modal cropper';
+      d.innerHTML = `<form method="dialog" class="stack"><h3>${esc(title)}</h3>
+        <div class="crop-wrap" style="width:${VW}px;height:${VH}px"><canvas class="stage" width="${VW * dpr}" height="${VH * dpr}" style="width:${VW}px;height:${VH}px" tabindex="0" aria-label="Görseli sürükleyerek konumlandır"></canvas>${round ? '<div class="crop-mask"></div>' : ''}</div>
+        <p class="small muted" style="text-align:center">Sürükleyerek konumlandır, kaydırarak ya da iki parmakla yakınlaştır.</p>
+        <div class="row"><span class="small muted">${ic('search')}</span><input class="grow" type="range" min="1" max="4" step="0.01" value="1" aria-label="Yakınlaştırma">
+          <button type="button" class="btn sm" data-rot="-90" aria-label="Sola döndür">${ic('rotl')}</button><button type="button" class="btn sm" data-rot="90" aria-label="Sağa döndür">${ic('rotr')}</button></div>
+        <div class="row crop-pv"><span class="small muted">Önizleme</span>${round
+          ? '<canvas class="pv r" width="192" height="192" style="width:96px;height:96px"></canvas><canvas class="pv r" width="96" height="96" style="width:48px;height:48px"></canvas><canvas class="pv r" width="64" height="64" style="width:32px;height:32px"></canvas>'
+          : `<canvas class="pv" width="480" height="${Math.round(480 / aspect)}" style="width:240px;height:${Math.round(240 / aspect)}px;border-radius:10px"></canvas>`}</div>
+        <div class="row" style="justify-content:flex-end"><button class="btn" value="no">Vazgeç</button><button class="btn primary" value="ok" data-ok>Kaydet</button></div></form>`;
+      const cv = d.querySelector('canvas.stage'), range = d.querySelector('input[type=range]');
+      const dims = () => (st.rot % 180 ? [im.naturalHeight, im.naturalWidth] : [im.naturalWidth, im.naturalHeight]);
+      const base = () => { const [w, h] = dims(); return Math.max(VW / w, VH / h); }; // görsel her zaman kırpma alanını doldurur
+      const clamp = () => {
+        const [w, h] = dims(), s = base() * st.zoom, mx = Math.max(0, (w * s - VW) / 2), my = Math.max(0, (h * s - VH) / 2);
+        st.ox = Math.min(mx, Math.max(-mx, st.ox)); st.oy = Math.min(my, Math.max(-my, st.oy));
+      };
+      const paint = (ctx, W, H) => {
+        const k = W / VW, s = base() * st.zoom * k;
+        ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+        ctx.translate(W / 2 + st.ox * k, H / 2 + st.oy * k); ctx.rotate(st.rot * Math.PI / 180); ctx.scale(s, s);
+        ctx.imageSmoothingQuality = 'high'; ctx.drawImage(im, -im.naturalWidth / 2, -im.naturalHeight / 2);
+      };
+      const draw = () => {
+        clamp(); paint(cv.getContext('2d'), cv.width, cv.height);
+        for (const p of d.querySelectorAll('canvas.pv')) { const c = p.getContext('2d'); c.imageSmoothingQuality = 'high'; c.drawImage(cv, 0, 0, p.width, p.height); }
+      };
+      const setZoom = z => { st.zoom = Math.min(4, Math.max(1, z)); range.value = st.zoom; draw(); };
+      const pts = new Map(); let pinch = 0;
+      cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]); pinch = 0; });
+      cv.addEventListener('pointermove', e => {
+        const prev = pts.get(e.pointerId); if (!prev) return;
+        pts.set(e.pointerId, [e.clientX, e.clientY]);
+        if (pts.size === 1) { st.ox += e.clientX - prev[0]; st.oy += e.clientY - prev[1]; draw(); }
+        else if (pts.size === 2) { const [a, b] = [...pts.values()], dist = Math.hypot(a[0] - b[0], a[1] - b[1]); if (pinch) setZoom(st.zoom * dist / pinch); pinch = dist; }
+      });
+      const up = e => { pts.delete(e.pointerId); pinch = 0; };
+      cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+      cv.addEventListener('wheel', e => { e.preventDefault(); setZoom(st.zoom * (e.deltaY < 0 ? 1.08 : 1 / 1.08)); }, { passive: false });
+      cv.addEventListener('keydown', e => {
+        const m = { ArrowLeft: [-12, 0], ArrowRight: [12, 0], ArrowUp: [0, -12], ArrowDown: [0, 12] }[e.key];
+        if (m) { e.preventDefault(); st.ox += m[0]; st.oy += m[1]; draw(); }
+        if (e.key === '+' || e.key === '=') setZoom(st.zoom * 1.1);
+        if (e.key === '-') setZoom(st.zoom / 1.1);
+      });
+      range.addEventListener('input', () => setZoom(Number(range.value)));
+      d.querySelectorAll('[data-rot]').forEach(b => b.addEventListener('click', () => { st.rot = (st.rot + Number(b.dataset.rot) + 360) % 360; st.ox = st.oy = 0; draw(); }));
+      d.addEventListener('close', () => {
+        let out = null;
+        if (d.returnValue === 'ok') { const o = document.createElement('canvas'); o.width = outW; o.height = Math.round(outW / aspect); paint(o.getContext('2d'), o.width, o.height); out = o.toDataURL('image/jpeg', 0.9); }
+        URL.revokeObjectURL(url); d.remove(); done(out);
+      });
+      document.body.append(d); d.showModal(); draw();
+    };
+    im.src = url;
+  });
 }
 
 // ---------- Şifre sıfırlama ----------
@@ -347,23 +504,32 @@ async function viewCommunity(slug, tab = '', x, y) {
   else main = tabAbout();
   const cur = tab === 'p' ? '' : tab, c = C.community, base = `#/c/${esc(c.slug)}`;
   return `
+    ${communityHeader()}
     <nav class="tabs" aria-label="Topluluk bölümleri"><div class="wrap">
       ${(isMember ? tabsFor() : TABS.slice(-1)).map(([k, l]) => `<a class="${k === cur ? 'on' : ''}" href="${base}${k ? '/' + k : ''}">${l}</a>`).join('')}
     </div></nav>
     <div class="wrap layout ${full ? 'full' : ''}"><div class="stack">${main}</div>${full ? '' : sidebar()}</div>`;
 }
-function sidebar() {
+function communityHeader() {
   const c = C.community;
+  return `<section class="chead"><div class="chead-cover" ${c.cover ? `style="background-image:url('${esc(c.cover)}')"` : ''}></div>
+    <div class="wrap chead-row"><span class="cicon xl">${esc(c.emoji)}</span>
+      <div class="grow chead-text"><h1>${esc(c.name)}</h1>${c.tagline ? `<p class="muted">${esc(c.tagline)}</p>` : ''}
+        <div class="row small muted" style="flex-wrap:wrap;margin-top:6px"><span>${ic('users')} ${C.stats.members} üye</span><span>${c.is_private ? ic('lock') + ' Özel' : ic('globe') + ' Açık'}</span>${c.price_text ? `<span class="tag gold">${esc(c.price_text)}</span>` : ''}${c.live ? `<a class="tag live-tag" href="#/c/${esc(c.slug)}/live">● CANLI</a>` : ''}</div></div>
+      ${C.role === 'admin' ? `<a class="btn" href="#/c/${esc(c.slug)}/admin">${ic('settings')} Yönet</a>` : ''}
+    </div></section>`;
+}
+function sidebar() {
+  const c = C.community, base = `#/c/${esc(c.slug)}`, ev = C.nextEvent;
   return `<aside class="side stack">
     <div class="card stack">
-      <div class="banner" ${c.cover ? `style="background-image:url('${esc(c.cover)}')"` : ''}></div>
-      <div class="row"><span class="cicon lg" style="margin-top:-28px;background:var(--surface);border:1px solid var(--line)">${esc(c.emoji)}</span></div>
-      <div><h3>${esc(c.name)}</h3><p class="small muted">${esc(c.tagline)}</p></div>
-      <div class="stats small"><div><b>${C.stats.members}</b><span class="muted">üye</span></div><div><b>${C.stats.posts}</b><span class="muted">gönderi</span></div><div><b>${C.stats.courses}</b><span class="muted">kurs</span></div></div>
+      <div class="stats small" style="border-top:0;padding-top:0"><div><b>${C.stats.members}</b><span class="muted">üye</span></div><div><b>${C.stats.posts}</b><span class="muted">gönderi</span></div><div><b>${C.stats.courses}</b><span class="muted">kurs</span></div></div>
       ${C.role ? `<div class="row spread small"><span>${C.role === 'admin' ? '<span class="tag gold">Yönetici</span>' : '<span class="tag">Üye</span>'} Seviye ${C.me.level} · ${C.me.points} puan</span>${C.role === 'admin' ? '' : '<button class="linkbtn" data-act="leave">Ayrıl</button>'}</div>${C.paid_until ? `<p class="small muted">Üyeliğin ${fmtDate(C.paid_until, { day: 'numeric', month: 'long', year: 'numeric' })} tarihine kadar geçerli.</p>` : ''}`
-        : joinBox(true)}
+        : '<p class="small muted">Gönderiler, kurslar ve etkinlikler üyelere açıktır.</p>'}
     </div>
-    ${C.role ? `<div class="card stack"><div class="row spread"><h3>En aktifler</h3><a class="small muted" href="#/c/${esc(c.slug)}/leaderboard">Tümü →</a></div>
+    ${C.role && c.description ? `<div class="card stack"><h3>Hakkında</h3><p class="small muted clamp4 body-text">${esc(c.description)}</p><a class="small" style="color:var(--accent);font-weight:600" href="${base}/about">Devamını oku →</a></div>` : ''}
+    ${ev ? `<a class="card stack" href="${base}/calendar"><h3>Yaklaşan etkinlik</h3><div class="row" style="align-items:flex-start"><div class="datebox"><small>${fmtDate(ev.starts_at, { month: 'short' })}</small><b>${new Date(ev.starts_at).getDate()}</b></div><div class="grow"><b>${esc(ev.title)}</b><div class="small muted">${fmtDate(ev.starts_at, { weekday: 'long' })} ${fmtTime(ev.starts_at)}</div></div></div></a>` : ''}
+    ${C.role ? `<div class="card stack"><div class="row spread"><h3>En aktifler</h3><a class="small muted" href="${base}/leaderboard">Tümü →</a></div>
       ${C.top.map((u, i) => `<a class="row" href="#/u/${u.id}"><span class="rank ${i === 0 ? 'r1' : ''}">${i + 1}</span>${avatar(u.name, u.color, u.level, 'sm', u.avatar)}<span class="grow">${esc(u.name)}</span><span class="small muted">${u.points}</span></a>`).join('')}</div>` : ''}
   </aside>`;
 }
@@ -374,9 +540,17 @@ async function tabFeed() {
   const qs = new URLSearchParams({ sort: f.sort }); if (f.category) qs.set('category', f.category); if (f.q) qs.set('q', f.q);
   const { posts } = await api(`/communities/${encodeURIComponent(c.slug)}/posts?${qs}`);
   const canPost = c.post_role !== 'admin' || C.role === 'admin';
-  return `
+  let hideStart = false;
+  try { hideStart = localStorage.getItem('start:' + c.slug) === '1'; } catch { /* depolama kapalıysa kart görünür kalır */ }
+  const start = C.me.posts === 0 && C.role !== 'admin' && !hideStart ? `<div class="card stack startcard"><div class="row spread"><h3>Hoş geldin! Buradan başla</h3><button class="linkbtn" data-act="hideStart">Kapat</button></div>
+      <div class="startsteps">
+        ${canPost ? `<button class="startstep" data-act="openComposer"><span>1</span><b>Kendini tanıt</b><small>Kısa bir merhaba gönderisi yaz</small></button>` : ''}
+        ${c.tabs.classroom ? `<a class="startstep" href="#/c/${esc(c.slug)}/classroom"><span>${canPost ? 2 : 1}</span><b>İlk derse başla</b><small>Kurslara göz at</small></a>` : ''}
+        ${c.tabs.members ? `<a class="startstep" href="#/c/${esc(c.slug)}/members"><span>${(canPost ? 2 : 1) + (c.tabs.classroom ? 1 : 0)}</span><b>Üyelerle tanış</b><small>Kimler var, bir bak</small></a>` : ''}
+      </div></div>` : '';
+  return `${start}
     ${c.live ? `<a class="card live-banner row" href="#/c/${esc(c.slug)}/live"><span class="tag live-tag">● CANLI</span><b class="grow">${esc(c.live.title)}</b><span class="btn sm primary">İzle</span></a>` : ''}
-    ${canPost ? `<details class="card adminbox"><summary class="row">${avatar(S.user.name, S.user.color, 0, '', S.user.avatar)}<span class="muted grow">Bir şeyler paylaş…</span></summary>
+    ${canPost ? `<details class="card adminbox" id="composer"><summary class="row">${avatar(S.user.name, S.user.color, 0, '', S.user.avatar)}<span class="muted grow">Bir şeyler paylaş…</span></summary>
       <form class="stack" data-form="post">
         <input type="text" name="title" placeholder="Başlık" required minlength="3" maxlength="140" aria-label="Başlık">
         <textarea name="body" placeholder="Ne paylaşmak istersin? (YouTube bağlantısı yapıştırırsan video gömülür)" required maxlength="8000" rows="5" aria-label="İçerik"></textarea>
@@ -595,11 +769,10 @@ function joinBox(block) {
 function tabAbout() {
   const c = C.community;
   return `<div class="card stack">
-      ${c.cover ? `<img class="cover" src="${esc(c.cover)}" alt="">` : ''}
-      <div class="row"><span class="cicon lg">${esc(c.emoji)}</span><div class="grow"><h1>${esc(c.name)}</h1><p class="muted">${esc(c.tagline)}</p></div></div>
-      <div class="row small muted" style="flex-wrap:wrap"><span class="tag">${esc(c.category)}</span><span>${c.is_private ? ic('lock') + ' Özel' : ic('globe') + ' Açık'}</span>${c.price_text ? `<span class="tag gold">${esc(c.price_text)}</span>` : '<span class="tag">Ücretsiz</span>'}<span>${ic('users')} ${C.stats.members} üye</span><span>Kurucu: <b>${esc(C.owner.name)}</b></span><span>${fmtDate(c.created_at, { month: 'long', year: 'numeric' })}</span></div>
+      <h2>Hakkında</h2>
+      <div class="row small muted" style="flex-wrap:wrap"><span class="tag">${esc(c.category)}</span>${c.price_text ? `<span class="tag gold">${esc(c.price_text)}</span>` : '<span class="tag">Ücretsiz</span>'}<span>${ic('book')} ${C.stats.courses} kurs</span><span>Kurucu: <a href="${S.user ? '#/u/' + C.owner.id : '#/login'}"><b>${esc(C.owner.name)}</b></a></span><span>${fmtDate(c.created_at, { month: 'long', year: 'numeric' })}</span></div>
       <div class="body-text">${rich(c.description) || '<span class="muted">Açıklama eklenmemiş.</span>'}</div>
-      ${C.role ? '' : `<p class="small muted">Gönderiler, kurslar ve etkinlikler yalnızca üyelere görünür.</p>`}
+      ${C.role ? '' : `<div class="joinwrap">${joinBox(false)}</div>`}
       ${C.role === 'admin' ? `<div><a class="btn" href="#/c/${esc(c.slug)}/admin/settings">${ic('settings')} Yönetim panelinde düzenle</a></div>` : ''}
     </div>`;
 }
@@ -668,8 +841,8 @@ function adminSettings() {
       <div><label for="a-tag">Kısa tanım</label><input id="a-tag" type="text" name="tagline" maxlength="100" value="${esc(c.tagline)}"></div>
       <div><label for="a-cat">Kategori</label><select id="a-cat" name="category">${[...new Set([...CATEGORY_LIST, c.category])].map(k => `<option ${k === c.category ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select></div>
       <div><label for="a-desc">Açıklama (Hakkında sayfasında görünür)</label><textarea id="a-desc" name="description" maxlength="3000" rows="6">${esc(c.description)}</textarea></div>
-      <div><label for="a-cover">Kapak görseli</label>${c.cover ? `<img class="cover" src="${esc(c.cover)}" alt="" style="margin-bottom:8px">` : ''}<input id="a-cover" type="file" name="coverFile" accept="image/png,image/jpeg,image/webp"></div>
-      ${c.cover ? '<label class="check"><input type="checkbox" name="removeCover"> Kapak görselini kaldır</label>' : ''}
+      <div><label>Kapak görseli</label>${c.cover ? `<img class="cover" src="${esc(c.cover)}" alt="" style="margin-bottom:8px">` : '<p class="small muted" style="margin-bottom:8px">Henüz kapak görseli yok; topluluk sayfasının üstünde ve keşfet kartında görünür.</p>'}
+        <div class="row" style="flex-wrap:wrap"><label class="btn">${ic('camera')} ${c.cover ? 'Kapağı değiştir' : 'Kapak yükle'}<input type="file" accept="image/png,image/jpeg,image/webp" data-pick="cover" hidden></label>${c.cover ? '<button type="button" class="btn danger" data-act="removeCover">Kaldır</button>' : ''}</div></div>
     </div>
     <div class="card stack"><h3>Erişim ve paylaşım</h3>
       <label class="check"><input type="checkbox" name="isPrivate" ${c.is_private ? 'checked' : ''}> Özel topluluk (katılmak için yönetici onayı gerekir)</label>
@@ -770,6 +943,12 @@ const acts = {
   async unlimited(el) { await api(`${slugPath()}/members/${el.dataset.id}`, 'POST', { unlimited: true }); toast('Üyelik süresiz yapıldı'); route(); },
   async setRole(el) { await api(`${slugPath()}/members/${el.dataset.id}`, 'POST', { role: el.dataset.role }); toast('Rol güncellendi'); route(); },
   async liveStop() { if (!await ask({ title: 'Canlı yayın bitirilsin mi? Sohbet temizlenir.', danger: true })) return; await api(slugPath() + '/live', 'DELETE'); toast('Yayın bitirildi'); route(); },
+  discoverCat(el) { discoverCat = el.dataset.v; route(); },
+  teachStart() { if (S.user) return go('#/new'); try { sessionStorage.setItem('after', '#/new'); } catch { /* yok say */ } go('#/register'); },
+  hideStart() { try { localStorage.setItem('start:' + C.community.slug, '1'); } catch { /* yok say */ } route(); },
+  openComposer() { const d = $('#composer'); if (!d) return; d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'center' }); $('input[name=title]', d).focus(); },
+  async removeAvatar() { if (!await ask({ title: 'Profil fotoğrafın kaldırılsın mı?', danger: true })) return; await api('/me/avatar', 'PUT', { avatar: '' }); await refreshMe(); toast('Fotoğraf kaldırıldı'); route(); },
+  async removeCover() { if (!await ask({ title: 'Kapak görseli kaldırılsın mı?', danger: true })) return; await api(slugPath() + '/cover', 'PUT', { cover: '' }); toast('Kapak kaldırıldı'); route(); },
   async cancelRequest() { await api(slugPath() + '/join', 'DELETE'); toast('İstek geri çekildi'); route(); },
   async decide(el) { await api(`${slugPath()}/requests/${el.dataset.id}`, 'POST', { approve: !!el.dataset.ok }); toast(el.dataset.ok ? 'Üye onaylandı' : 'İstek reddedildi'); route(); },
   async kick(el) { if (!await ask({ title: `${el.dataset.name} topluluktan çıkarılsın mı?`, danger: true })) return; await api(`${slugPath()}/members/${el.dataset.id}`, 'DELETE'); route(); },
@@ -801,15 +980,11 @@ const acts = {
   async delEvent(el) { if (!await ask({ title: 'Etkinlik silinsin mi?', danger: true })) return; await api('/events/' + el.dataset.id, 'DELETE'); route(); },
 };
 const forms = {
-  discover(d) { discoverQ = d.q.trim(); route(); },
+  async discover(d) { discoverQ = d.q.trim(); await route(); $('#kesfet')?.scrollIntoView({ behavior: 'smooth' }); },
   async login(d) { await api('/auth/login', 'POST', d); await refreshMe(); go(afterAuth()); },
   async register(d) { await api('/auth/register', 'POST', d); await refreshMe(); toast('Hoş geldin!'); go(afterAuth()); },
   async newCommunity(d) { const r = await api('/communities', 'POST', { ...d, isPrivate: !!d.isPrivate }); await refreshMe(); toast('Topluluğun hazır'); go('#/c/' + r.slug); },
-  async profile(d) {
-    let avatar = d.removePhoto ? '' : S.user.avatar;
-    if (d.photo && d.photo.size) avatar = await upload(d.photo, 400);
-    await api('/me', 'PUT', { name: d.name, bio: d.bio, avatar }); await refreshMe(); toast('Profil güncellendi'); route();
-  },
+  async profile(d) { await api('/me', 'PUT', { name: d.name, title: d.title, bio: d.bio, link: d.link }); await refreshMe(); toast('Bilgilerin kaydedildi'); route(); },
   async password(d, form) {
     if (d.next !== d.again) throw new Error('Yeni şifreler birbiriyle aynı değil');
     await api('/me/password', 'PUT', { current: d.current, next: d.next }); form.reset(); toast('Şifren güncellendi');
@@ -841,9 +1016,7 @@ const forms = {
     toast('Etkinlik eklendi'); route();
   },
   async adminSettings(d) {
-    let cover = d.removeCover ? '' : C.community.cover;
-    if (d.coverFile && d.coverFile.size) cover = await upload(d.coverFile, 1600);
-    await api(slugPath(), 'PUT', { name: d.name, tagline: d.tagline, description: d.description, category: d.category, emoji: d.emoji, isPrivate: !!d.isPrivate, postRole: d.postRole, categories: d.categories, cover,
+    await api(slugPath(), 'PUT', { name: d.name, tagline: d.tagline, description: d.description, category: d.category, emoji: d.emoji, isPrivate: !!d.isPrivate, postRole: d.postRole, categories: d.categories,
       tabs: { classroom: !!d.tab_classroom, calendar: !!d.tab_calendar, members: !!d.tab_members, leaderboard: !!d.tab_leaderboard } });
     await refreshMe(); toast('Ayarlar kaydedildi'); route();
   },
@@ -869,6 +1042,32 @@ document.addEventListener('submit', async ev => {
   try { await forms[form.dataset.form](Object.fromEntries(new FormData(form)), form); }
   catch (err) { toast(err.message); }
   finally { if (btn) btn.disabled = false; }
+});
+// Fotoğraf seçildiğinde kırpma ekranını aç; onaylanırsa yükle ve kaydet
+document.addEventListener('change', async ev => {
+  const kind = ev.target.dataset?.pick, file = ev.target.files?.[0];
+  if (!kind || !file) return;
+  ev.target.value = '';
+  try {
+    const dataUrl = kind === 'avatar' ? await cropImage(file, { title: 'Profil fotoğrafını düzenle' }) : await cropImage(file, { aspect: 3, round: false, outW: 1500, title: 'Kapak görselini düzenle' });
+    if (!dataUrl) return;
+    document.body.classList.add('loading');
+    const { url } = await api('/upload', 'POST', { dataUrl });
+    if (kind === 'avatar') { await api('/me/avatar', 'PUT', { avatar: url }); await refreshMe(); toast('Profil fotoğrafın güncellendi'); }
+    else { await api(slugPath() + '/cover', 'PUT', { cover: url }); toast('Kapak görseli güncellendi'); }
+    route();
+  } catch (err) { document.body.classList.remove('loading'); toast(err.message); }
+});
+document.addEventListener('input', ev => {
+  const f = ev.target.form?.dataset.form, set = (id, v) => { const el = $(id); if (el) el.textContent = v; };
+  if (f === 'profile') {
+    const d = Object.fromEntries(new FormData(ev.target.form));
+    set('#pvName', d.name || 'Ad Soyad'); set('#pvTitle', d.title); set('#pvBio', d.bio); set('#bioCount', `${d.bio.length}/300`);
+  } else if (f === 'newCommunity') {
+    const d = Object.fromEntries(new FormData(ev.target.form));
+    set('#nvEmoji', d.emoji || '🎓'); set('#nvName', d.name || 'Topluluk adı'); set('#nvTag', d.tagline || 'Kısa tanımın burada görünür'); set('#nvCat', d.category);
+    set('#nvPrice', d.priceType === 'free' || !d.priceAmount ? 'Ücretsiz' : `₺${d.priceAmount}${d.priceType === 'monthly' ? ' / ay' : ' tek seferlik'}`);
+  }
 });
 document.addEventListener('change', ev => {
   if (ev.target.dataset.change === 'feedSort') { S.feed.sort = ev.target.value; route(); }

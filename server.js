@@ -99,7 +99,7 @@ function notify(userId, actorId, type, postId, communityId) {
 // ---------- Oturum ----------
 app.use((req, res, next) => {
   const m = /(?:^|;\s*)sid=([a-f0-9]{48})/.exec(req.headers.cookie || '');
-  req.user = m ? one('SELECT u.id,u.name,u.email,u.bio,u.color,u.avatar FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=?', m[1]) || null : null;
+  req.user = m ? one('SELECT u.id,u.name,u.email,u.bio,u.color,u.avatar,u.title,u.link FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=?', m[1]) || null : null;
   req.sid = m ? m[1] : null;
   next();
 });
@@ -165,9 +165,20 @@ app.get('/api/me', (req, res) => {
   });
 });
 app.put('/api/me', auth, (req, res) => {
+  let link = optText(req.body.link, 'Bağlantı', 200);
+  if (link) {
+    if (!/^https?:\/\//i.test(link)) link = 'https://' + link;
+    let ok = false;
+    try { ok = /^https?:$/.test(new URL(link).protocol) && new URL(link).hostname.includes('.'); } catch { /* geçersiz adres */ }
+    if (!ok) fail(400, 'Geçerli bir bağlantı gir (örn. ornek.com)');
+  }
+  run('UPDATE users SET name=?, title=?, bio=?, link=? WHERE id=?', text(req.body.name, 'Ad', 60, 2), optText(req.body.title, 'Unvan', 60), optText(req.body.bio, 'Hakkında', 300), link, req.user.id);
+  res.json({ ok: true });
+});
+app.put('/api/me/avatar', auth, (req, res) => {
   const avatar = img(req.body.avatar);
   if (req.user.avatar && req.user.avatar !== avatar) removeUpload(req.user.avatar);
-  run('UPDATE users SET name=?, bio=?, avatar=? WHERE id=?', text(req.body.name, 'Ad', 60, 2), optText(req.body.bio, 'Hakkında', 300), avatar, req.user.id);
+  run('UPDATE users SET avatar=? WHERE id=?', avatar, req.user.id);
   res.json({ ok: true });
 });
 app.put('/api/me/password', auth, (req, res) => {
@@ -262,11 +273,13 @@ app.get('/api/notifications', auth, (req, res) => {
 
 // ---------- Topluluklar ----------
 app.get('/api/communities', (req, res) => {
-  const q = `%${String(req.query.q || '').trim()}%`;
+  const q = `%${String(req.query.q || '').trim()}%`, cat = String(req.query.category || '').trim();
   res.json({
     items: all(`SELECT c.slug,c.name,c.tagline,c.emoji,c.color,c.category,c.is_private,c.price_text,c.cover,(c.live_video<>'') live,
-      (SELECT COUNT(*) FROM memberships m WHERE m.community_id=c.id) members
-      FROM communities c WHERE c.name LIKE ? OR c.tagline LIKE ? OR c.category LIKE ? ORDER BY members DESC, c.created_at DESC LIMIT 60`, q, q, q),
+      (SELECT COUNT(*) FROM memberships m WHERE m.community_id=c.id) members,
+      (SELECT COUNT(*) FROM courses k WHERE k.community_id=c.id) courses
+      FROM communities c WHERE (c.name LIKE ? OR c.tagline LIKE ? OR c.category LIKE ?) AND (?='' OR c.category=?)
+      ORDER BY members DESC, c.created_at DESC LIMIT 60`, q, q, q, cat, cat),
   });
 });
 app.post('/api/communities', auth, (req, res) => {
@@ -306,7 +319,8 @@ app.get('/api/communities/:slug', loadCommunity, (req, res) => {
       courses: one('SELECT COUNT(*) n FROM courses WHERE community_id=?', c.id).n,
     },
     top,
-    me: req.role ? { points: myPoints, level: levelOf(myPoints) } : null,
+    me: req.role ? { points: myPoints, level: levelOf(myPoints), posts: one('SELECT COUNT(*) n FROM posts WHERE community_id=? AND user_id=?', c.id, req.user.id).n } : null,
+    nextEvent: req.role ? one('SELECT id,title,starts_at FROM events WHERE community_id=? AND starts_at>=? ORDER BY starts_at LIMIT 1', c.id, now()) || null : null,
   });
 });
 app.put('/api/communities/:slug', auth, loadCommunity, admin, (req, res) => {
@@ -315,11 +329,17 @@ app.put('/api/communities/:slug', auth, loadCommunity, admin, (req, res) => {
   if (cats.length < 1 || cats.length > 8 || cats.some(x => x.length > 24)) fail(400, 'En az 1, en fazla 8 gönderi kategorisi yaz (her biri en çok 24 karakter)');
   const tabs = {};
   for (const k of TAB_KEYS) tabs[k] = b.tabs?.[k] ? 1 : 0;
-  const cover = img(b.cover);
+  const cover = b.cover === undefined ? c.cover : img(b.cover);
   if (c.cover && c.cover !== cover) removeUpload(c.cover);
   run('UPDATE communities SET name=?, tagline=?, description=?, category=?, emoji=?, is_private=?, categories=?, tabs=?, post_role=?, cover=? WHERE id=?',
     text(b.name, 'Topluluk adı', 50, 3), optText(b.tagline, 'Kısa tanım', 100), optText(b.description, 'Açıklama', 3000), optText(b.category, 'Kategori', 30) || 'Genel',
     [...optText(b.emoji, 'Simge', 8)].slice(0, 2).join('') || '🎓', b.isPrivate ? 1 : 0, JSON.stringify(cats), JSON.stringify(tabs), b.postRole === 'admin' ? 'admin' : 'member', cover, c.id);
+  res.json({ ok: true });
+});
+app.put('/api/communities/:slug/cover', auth, loadCommunity, admin, (req, res) => {
+  const cover = img(req.body.cover);
+  if (req.c.cover && req.c.cover !== cover) removeUpload(req.c.cover);
+  run('UPDATE communities SET cover=? WHERE id=?', cover, req.c.id);
   res.json({ ok: true });
 });
 app.put('/api/communities/:slug/pricing', auth, loadCommunity, admin, (req, res) => {
@@ -564,7 +584,7 @@ app.delete('/api/events/:id', auth, (req, res) => {
 app.get('/api/communities/:slug/members', auth, loadCommunity, member, (req, res) => {
   const pts = pointsMap(req.c.id);
   res.json({
-    members: all('SELECT u.id,u.name,u.bio,u.color,u.avatar,m.role,m.joined_at FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.community_id=? ORDER BY m.role, m.joined_at', req.c.id)
+    members: all('SELECT u.id,u.name,u.title,u.bio,u.color,u.avatar,m.role,m.joined_at FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.community_id=? ORDER BY m.role, m.joined_at', req.c.id)
       .map(u => ({ ...u, points: pts.get(u.id) || 0, level: levelOf(pts.get(u.id) || 0) })),
     requests: req.role === 'admin' ? all('SELECT u.id,u.name,u.color,u.avatar,r.note,r.created_at FROM join_requests r JOIN users u ON u.id=r.user_id WHERE r.community_id=? ORDER BY r.created_at', req.c.id) : [],
   });
@@ -589,7 +609,7 @@ app.get('/api/communities/:slug/leaderboard', auth, loadCommunity, member, (req,
 
 // ---------- Profil ----------
 app.get('/api/users/:id', auth, (req, res) => {
-  const u = one('SELECT id,name,bio,color,avatar,created_at FROM users WHERE id=?', Number(req.params.id));
+  const u = one('SELECT id,name,title,link,bio,color,avatar,created_at FROM users WHERE id=?', Number(req.params.id));
   if (!u) fail(404, 'Kullanıcı bulunamadı');
   const communities = all('SELECT c.id,c.slug,c.name,c.emoji,c.color,m.role FROM memberships m JOIN communities c ON c.id=m.community_id WHERE m.user_id=? ORDER BY m.joined_at', u.id)
     .map(c => { const pts = one('SELECT COUNT(*) n FROM likes WHERE community_id=? AND author_id=?', c.id, u.id).n; return { ...c, points: pts, level: levelOf(pts) }; });

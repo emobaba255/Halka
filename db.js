@@ -70,6 +70,13 @@ CREATE TABLE IF NOT EXISTS resets(
   token TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires_at INTEGER NOT NULL);
 `);
 
+// Sonradan eklenen sütunlar: var olan veritabanlarında da oluşturulur
+function addColumn(table, col, def) {
+  if (!db.prepare(`PRAGMA table_info(${table})`).all().some(c => c.name === col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
+}
+addColumn('users', 'title', "TEXT DEFAULT ''");
+addColumn('users', 'link', "TEXT DEFAULT ''");
+
 // Marka renkleri: lacivert, mavi, altın. Profil ve topluluk renkleri yalnızca bunlardan seçilir.
 const COLORS = ['#0f2747', '#1f5fd6', '#9a7016'];
 const DEFAULT_CATEGORIES = ['Genel', 'Duyurular', 'Sorular', 'Kazanımlar'];
@@ -103,6 +110,9 @@ function seed() {
   ];
   const U = people.map(([n, e, b], i) =>
     ins('INSERT INTO users(name,email,pass,bio,color,created_at) VALUES(?,?,?,?,?,?)', n, e, pass, b, COLORS[i % COLORS.length], now - (60 - i) * D));
+
+  ['Ürün tasarımcısı', 'Tasarım eğitmeni', 'Yazılım geliştirici', 'İllüstratör', 'Koşu antrenörü', 'İçerik üreticisi', 'Veri analisti', 'Öğrenci']
+    .forEach((t, i) => db.prepare('UPDATE users SET title=? WHERE id=?').run(t, U[i]));
 
   const mkCommunity = (slug, name, tagline, description, category, emoji, color, owner, priv = 0) =>
     ins('INSERT INTO communities(slug,name,tagline,description,category,is_private,categories,owner_id,color,emoji,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
