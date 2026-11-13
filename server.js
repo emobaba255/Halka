@@ -5,6 +5,7 @@ const fs = require('fs');
 const { db, hashPassword, checkPassword, COLORS, DEFAULT_CATEGORIES } = require('./db');
 
 const app = express();
+app.set('trust proxy', 1); // barındırma hizmetinin vekil sunucusu arkasında gerçek IP ve https bilgisini al
 app.use('/api/upload', express.json({ limit: '6mb' }));
 app.use('/api/upload-file', express.json({ limit: '12mb' }));
 app.use(express.json({ limit: '200kb' }));
@@ -105,7 +106,7 @@ app.use((req, res, next) => {
 function startSession(res, userId) {
   const token = crypto.randomBytes(24).toString('hex');
   run('INSERT INTO sessions(token,user_id,created_at) VALUES(?,?,?)', token, userId, now());
-  res.setHeader('Set-Cookie', `sid=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${60 * 60 * 24 * 30}`);
+  res.setHeader('Set-Cookie', `sid=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${60 * 60 * 24 * 30}${res.req.secure ? '; Secure' : ''}`);
 }
 const auth = (req, res, next) => req.user ? next() : res.status(401).json({ error: 'Önce giriş yapmalısın' });
 

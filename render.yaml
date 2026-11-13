@@ -1,0 +1,12 @@
+# Render ile tek adımda yayına alma ayarları
+services:
+  - type: web
+    name: okul
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: 22.14.0
