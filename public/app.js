@@ -60,7 +60,7 @@ function renderTop() {
   const u = S.user;
   const switcher = u ? `
     <div class="switcher">
-      <button class="btn sm" data-act="menu" data-menu="comm" aria-expanded="${S.menu === 'comm'}">Topluluklarım ▾</button>
+      <button class="btn sm" data-act="menu" data-menu="comm" aria-expanded="${S.menu === 'comm'}"><span class="hide-sm">Topluluklarım</span><span class="only-sm">Topluluklar</span><span class="only-xs" aria-label="Topluluklar">👥</span> ▾</button>
       ${S.menu === 'comm' ? `<div class="menu left">
         ${S.communities.map(c => `<a href="#/c/${esc(c.slug)}"><span class="cicon" style="--c:${esc(c.color)}">${esc(c.emoji)}</span><span class="grow">${esc(c.name)}</span></a>`).join('') || '<div class="muted small" style="padding:10px">Henüz bir topluluğa katılmadın.</div>'}
         <hr><a href="#/">🔎 Toplulukları keşfet</a><a href="#/new">➕ Topluluk kur</a></div>` : ''}
@@ -78,7 +78,7 @@ function renderTop() {
         <a href="#/u/${u.id}">👤 Profilim</a><a href="#/m">✉️ Mesajlar</a><a href="#/new">➕ Topluluk kur</a>
         <button class="item" data-act="logout">↩ Çıkış yap</button></div>` : ''}
     </div>` : `<a class="btn ghost" href="#/login">Giriş yap</a><a class="btn primary" href="#/register">Kayıt ol</a>`;
-  $('#top').innerHTML = `<div class="wrap row topbar"><a class="logo" href="#/"><i></i><span class="hide-sm">Okul</span></a>${switcher}<span class="grow"></span>${right}</div>`;
+  $('#top').innerHTML = `<div class="wrap row topbar"><a class="logo" href="#/" aria-label="Okul ana sayfa"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="11.5" fill="none" stroke="#d4a537" stroke-width="5"/><circle cx="16" cy="16" r="3.6" fill="#d4a537"/></svg><span>Okul</span></a>${switcher}<span class="grow"></span>${right}</div>`;
 }
 function renderNotes() {
   if (!S.notes) return '<div class="muted small" style="padding:12px">Yükleniyor…</div>';
@@ -171,7 +171,7 @@ function viewNew() {
     <h2>Yeni topluluk kur</h2>
     <form class="stack" data-form="newCommunity">
       <div class="row" style="align-items:flex-end">
-        <div style="width:80px"><label for="n-emoji">Simge</label><input id="n-emoji" type="text" name="emoji" value="⭕" maxlength="4"></div>
+        <div style="width:80px"><label for="n-emoji">Simge</label><input id="n-emoji" type="text" name="emoji" value="🎓" maxlength="4"></div>
         <div class="grow"><label for="n-name">Topluluk adı</label><input id="n-name" type="text" name="name" required minlength="3" maxlength="50"></div>
       </div>
       <div><label for="n-tag">Kısa tanım</label><input id="n-tag" type="text" name="tagline" maxlength="100" placeholder="Tek cümleyle topluluğun ne hakkında?"></div>
@@ -799,6 +799,8 @@ const forms = {
 document.addEventListener('click', async ev => {
   const el = ev.target.closest('[data-act]');
   if (!ev.target.closest('.switcher') && S.menu) { S.menu = null; renderTop(); }
+  // Menüdeki bir bağlantı zaten açık olan sayfaya gidiyorsa sayfa değişmez; menüyü yine de kapat
+  if (S.menu && ev.target.closest('.menu a')) setTimeout(() => { if (S.menu) { S.menu = null; renderTop(); } });
   if (!el || el.disabled) return;
   try { await acts[el.dataset.act]?.(el, ev); } catch (err) { toast(err.message); }
 });

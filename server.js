@@ -274,7 +274,7 @@ app.post('/api/communities', auth, (req, res) => {
   const tagline = optText(req.body.tagline, 'Kısa tanım', 100);
   const description = optText(req.body.description, 'Açıklama', 3000);
   const category = optText(req.body.category, 'Kategori', 30) || 'Genel';
-  const emoji = [...optText(req.body.emoji, 'Simge', 8)].slice(0, 2).join('') || '⭕';
+  const emoji = [...optText(req.body.emoji, 'Simge', 8)].slice(0, 2).join('') || '🎓';
   const price = parsePrice(req.body);
   let slug = slugify(name), n = 1;
   while (one('SELECT 1 FROM communities WHERE slug=?', slug)) slug = `${slugify(name)}-${++n}`;
@@ -319,7 +319,7 @@ app.put('/api/communities/:slug', auth, loadCommunity, admin, (req, res) => {
   if (c.cover && c.cover !== cover) removeUpload(c.cover);
   run('UPDATE communities SET name=?, tagline=?, description=?, category=?, emoji=?, is_private=?, categories=?, tabs=?, post_role=?, cover=? WHERE id=?',
     text(b.name, 'Topluluk adı', 50, 3), optText(b.tagline, 'Kısa tanım', 100), optText(b.description, 'Açıklama', 3000), optText(b.category, 'Kategori', 30) || 'Genel',
-    [...optText(b.emoji, 'Simge', 8)].slice(0, 2).join('') || '⭕', b.isPrivate ? 1 : 0, JSON.stringify(cats), JSON.stringify(tabs), b.postRole === 'admin' ? 'admin' : 'member', cover, c.id);
+    [...optText(b.emoji, 'Simge', 8)].slice(0, 2).join('') || '🎓', b.isPrivate ? 1 : 0, JSON.stringify(cats), JSON.stringify(tabs), b.postRole === 'admin' ? 'admin' : 'member', cover, c.id);
   res.json({ ok: true });
 });
 app.put('/api/communities/:slug/pricing', auth, loadCommunity, admin, (req, res) => {
