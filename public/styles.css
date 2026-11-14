@@ -507,3 +507,11 @@ a.file > .ic:last-child { color: var(--muted); }
 .qz label.bad { color: var(--danger); text-decoration: line-through; }
 .quizout { color: var(--accent); }
 .price span { font-size: 15px; }
+
+/* Fiyatlandırma: üç plan */
+.pricegrid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; }
+@media (max-width: 900px) { .pricegrid.three { grid-template-columns: minmax(0, 1fr); } }
+.plan .tag { vertical-align: middle; }
+.stat.hot { border-top-color: var(--accent); box-shadow: 0 0 0 2px var(--soft), var(--shadow); }
+.stat em { font-style: normal; }
+.btn[disabled] { cursor: not-allowed; }

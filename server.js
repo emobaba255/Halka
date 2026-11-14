@@ -858,7 +858,7 @@ app.get('/api/communities/:slug/admin', auth, loadCommunity, admin, (req, res) =
     },
     requests: all('SELECT u.id,u.name,u.color,u.avatar,r.note,r.created_at FROM join_requests r JOIN users u ON u.id=r.user_id WHERE r.community_id=? ORDER BY r.created_at', c.id),
     members, invite_code: c.invite_code, owner_id: c.owner_id,
-    storage: { used: videoBytes(c.id), quota: VIDEO_QUOTA },
+    storage: { used: videoBytes(c.id), quota: videoQuota(c), planQuota: PLAN_QUOTA_GB[c.price_type === 'free' ? 'free' : 'paid'] * 1024 ** 3 },
   });
 });
 app.post('/api/communities/:slug/members/:userId', auth, loadCommunity, admin, (req, res) => {
@@ -941,9 +941,14 @@ app.post('/api/posts/:id/vote', auth, loadPost, member, (req, res) => {
 });
 // ---------- Video yükleme (parça parça) ----------
 // Büyük dosyalar tek istekte gönderilmez: tarayıcı videoyu 4 MB'lık parçalara böler, sunucu sırayla diske ekler.
-const MAX_VIDEO = (parseInt(process.env.MAX_VIDEO_MB, 10) || 2048) * 1024 * 1024;
+// Videolar izlenme başına ücretsiz bir depoya taşınana kadar tek video küçük tutulur: sunucudan izlenen her GB ücretlidir
+const MAX_VIDEO = (parseInt(process.env.MAX_VIDEO_MB, 10) || 300) * 1024 * 1024;
 const CHUNK = 4 * 1024 * 1024;
-const VIDEO_QUOTA = (parseFloat(process.env.VIDEO_QUOTA_GB) || 5) * 1024 ** 3; // topluluk başına yüklenen video toplamı
+// Video alanı plana göre: ücretsiz topluluk 5 GB, eğitim satan topluluk 50 GB.
+// VIDEO_QUOTA_CAP_GB, depolama ucuz bir hizmete taşınana kadar tüm planlara uygulanan geçici üst sınırdır.
+const PLAN_QUOTA_GB = { free: 5, paid: 50 };
+const QUOTA_CAP = (parseFloat(process.env.VIDEO_QUOTA_CAP_GB) || 5) * 1024 ** 3;
+const videoQuota = c => Math.min(PLAN_QUOTA_GB[c.price_type === 'free' ? 'free' : 'paid'] * 1024 ** 3, QUOTA_CAP);
 function videoBytes(communityId) {
   let sum = 0;
   for (const l of all("SELECT l.video_file FROM lessons l JOIN courses k ON k.id=l.course_id WHERE k.community_id=? AND l.video_file<>''", communityId)) {
@@ -970,7 +975,8 @@ app.post('/api/video/start', auth, (req, res) => {
   if (free < size + 100 * 1024 * 1024) fail(507, 'Sunucuda bu video için yeterli depolama alanı yok. YouTube bağlantısı ekleyebilirsin.');
   // Topluluk başına video depolama kotası: barındırma giderinin kontrolsüz büyümesini önler
   const uploading = [...pendingVideos.values()].filter(u => u.communityId === course.community_id).reduce((a, u) => a + u.size, 0);
-  if (videoBytes(course.community_id) + uploading + size > VIDEO_QUOTA) fail(400, `Bu topluluğun ${sizeLabel(VIDEO_QUOTA)} video depolama alanı doldu. Eski bir videoyu kaldırabilir ya da YouTube bağlantısı ekleyebilirsin (YouTube videoları kotadan düşmez).`);
+  const quota = videoQuota(one('SELECT price_type FROM communities WHERE id=?', course.community_id));
+  if (videoBytes(course.community_id) + uploading + size > quota) fail(400, `Bu topluluğun ${sizeLabel(quota)} video depolama alanı doldu. Eski bir videoyu kaldırabilir ya da YouTube bağlantısı ekleyebilirsin (YouTube videoları kotadan düşmez).`);
   if ([...pendingVideos.values()].filter(u => u.userId === req.user.id).length >= 3) fail(429, 'Aynı anda en fazla 3 video yükleyebilirsin');
   const id = crypto.randomBytes(16).toString('hex'), file = path.join(UPLOADS, id + '.part');
   fs.writeFileSync(file, '');

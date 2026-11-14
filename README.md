@@ -24,8 +24,8 @@ Ardından tarayıcıda `http://localhost:3000` adresini aç. İlk çalıştırma
 | `BASE_URL` | Sitenin adresi; şifre sıfırlama bağlantılarında kullanılır |
 | `SMTP_URL` | E-posta sunucusu, örn. `smtps://kullanici:sifre@smtp.ornek.com`. Tanımlı değilse e-postalar gönderilmez, sunucu günlüğüne yazılır |
 | `MAIL_FROM` | Gönderen adresi, örn. `Okul <bilgi@ornek.com>` |
-| `VIDEO_QUOTA_GB` | Bir topluluğun derslerine yükleyebileceği toplam video boyutu (varsayılan 5) |
-| `MAX_VIDEO_MB` | Derslere yüklenen bir videonun en büyük boyutu (varsayılan 2048) |
+| `VIDEO_QUOTA_CAP_GB` | Tüm planlara uygulanan geçici video alanı üst sınırı (varsayılan 5). Plan kotaları: ücretsiz 5 GB, eğitim satan 50 GB; depolama ucuz bir hizmete taşınınca bu değer yükseltilir |
+| `MAX_VIDEO_MB` | Derslere yüklenen tek bir videonun en büyük boyutu (varsayılan 300). Sunucudan izlenen her GB ücretli olduğu için düşük tutulur |
 
 ## Kalıcı veri (Render)
 

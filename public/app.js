@@ -352,7 +352,7 @@ function viewTeach() {
       <h1>Bildiğini öğret,<br>topluluğunu büyüt</h1>
       <p class="muted">Kurslarını, öğrencilerini ve canlı derslerini tek bir yerden yönet. Kurulumu birkaç dakika sürer.</p>
       <div class="row cta"><button class="btn primary lg" data-act="teachStart">Topluluğunu kur</button><a class="btn lg" href="#/pricing">Fiyatlandırma</a></div>
-      <p class="small muted" style="margin-top:12px">Ücretsiz başla. Eğitim satanlara aylık ücret yok; yalnızca satıştan pay alınır.</p>
+      <p class="small muted" style="margin-top:12px">Ücretsiz başla. Eğitim satmaya başlarken aylık ücret yok; yalnızca satıştan pay alınır.</p>
     </div></section>
     <div class="wrap stack" style="padding-bottom:20px">
       <div class="tgrid">
@@ -512,11 +512,15 @@ function viewSettings(sec) {
 }
 
 // ---------- Fiyatlandırma ----------
-const FEE = 10;          // ücretli üyelik satışlarından alınan hizmet payı (%), ödeme işlem ücreti dahil
+// Model: önce gelir, sonra gider. Maliyet doğuran özellikler (geniş video alanı, kendi canlı yayınımız) gelir getiren planlara bağlıdır.
+const FEE = 10;          // Başlangıç planında satıştan alınan hizmet payı (%), ödeme işlem ücreti dahil
+const PRO_PRICE = 499;   // Pro planının aylık ücreti (₺)
+const PRO_FEE = 4;       // Pro planında satıştan alınan hizmet payı (%), ödeme işlem ücreti dahil
 const MIN_PRICE = 250;   // ücretli üyeliğin en düşük fiyatı (₺)
 const FREE_MEMBERS = 50; // bu sayıya kadar ücretsiz üyesi olan topluluk plan ücreti ödemez
 const FREE_PLAN = 149;   // ücretsiz üye sayısı sınırı aşan toplulukların aylık plan ücreti (₺)
-const QUOTA_GB = 5;      // topluluk başına dahil olan video depolama
+const QUOTA = { free: 5, paid: 50, pro: 200 }; // plana göre video alanı (GB)
+const PROMO_QUOTA = 5, PROMO_VIDEO_MB = 300;   // tanıtım dönemindeki geçici yükleme sınırları
 const tl = n => '₺' + Math.round(n).toLocaleString('tr-TR');
 function viewPricing() {
   const li = t => `<li>${ic('check')}<span>${t}</span></li>`;
@@ -528,44 +532,56 @@ function viewPricing() {
       <p class="muted">Deneme süresi yok, kart bilgisi yok. Topluluğunu ücretsiz kur; eğitim satmaya başladığında yalnızca satıştan küçük bir pay alırız.</p>
     </div></section>
     <div class="wrap stack" style="padding-bottom:24px">
-      <div class="pricegrid two">
-        <div class="card plan">
-          <span class="tag gold">Eğitim satanlar için</span>
-          <h3>Ücretli topluluk</h3>
-          <div class="price"><b>₺0</b><span>/ ay</span></div>
-          <p class="muted">Üyelerinden aylık ya da tek seferlik ücret alıyorsan plan ücreti ödemezsin.</p>
-          <ul class="checks">
-            ${li(`Satıştan <b>%${FEE}</b> hizmet payı; ödeme işlem ücreti dahil, başka kesinti yok`)}
-            ${li(`Gelirinin %${100 - FEE}'i sende kalır`)}
-            ${li('Satış yapmadığın ay hiçbir şey ödemezsin')}
-            ${li(`Üyelik ücretini sen belirlersin (en az ${tl(MIN_PRICE)})`)}
-            ${li('Ücretli üye sayısında sınır yok')}
-          </ul>
-          <button class="btn primary lg block" data-act="teachStart">Topluluğunu kur</button>
-        </div>
+      <div class="pricegrid three">
         <div class="card plan plain">
           <span class="tag">Ücretsiz eğitim verenler için</span>
           <h3>Ücretsiz topluluk</h3>
           <div class="price"><b>₺0</b><span>/ ay · ${FREE_MEMBERS} üyeye kadar</span></div>
-          <p class="muted">Küçük topluluklar süresiz ücretsiz. Topluluğun büyüyünce sabit ve düşük bir aylık ücrete geçersin.</p>
+          <p class="muted">Küçük topluluklar süresiz ücretsiz. Büyüyünce sabit ve düşük bir ücrete geçersin.</p>
           <ul class="checks">
-            ${li(`İlk ${FREE_MEMBERS} üye için süresiz ücretsiz`)}
             ${li(`${FREE_MEMBERS} üyeden sonra <b>${tl(FREE_PLAN)} / ay</b>, üye sayısı sınırsız`)}
-            ${li('Hizmet payı ya da komisyon yok')}
-            ${li('Üyelerin için tamamen ücretsiz')}
-            ${li('İstediğin zaman ücretli topluluğa geçebilirsin')}
+            ${li('Komisyon yok; üyelerin için tamamen ücretsiz')}
+            ${li(`${QUOTA.free} GB video alanı`)}
+            ${li('YouTube bağlantısıyla sınırsız video ve canlı yayın')}
           </ul>
-          <button class="btn lg block" data-act="teachStart">Topluluğunu kur</button>
+          <button class="btn lg block" data-act="teachStart">Ücretsiz kur</button>
+        </div>
+        <div class="card plan">
+          <span class="tag gold">Eğitim satanlar için</span>
+          <h3>Başlangıç</h3>
+          <div class="price"><b>₺0</b><span>/ ay</span></div>
+          <p class="muted">Üyelerinden ücret alıyorsan plan ücreti ödemezsin; yalnızca satıştan pay alınır.</p>
+          <ul class="checks">
+            ${li(`Satıştan <b>%${FEE}</b> hizmet payı; işlem ücreti dahil`)}
+            ${li('Satış yapmadığın ay hiçbir şey ödemezsin')}
+            ${li(`${QUOTA.paid} GB video alanı`)}
+            ${li('Okul içinden kamerayla canlı yayın <span class="tag">yakında</span>')}
+            ${li(`Üyelik ücretini sen belirlersin (en az ${tl(MIN_PRICE)})`)}
+          </ul>
+          <button class="btn primary lg block" data-act="teachStart">Topluluğunu kur</button>
+        </div>
+        <div class="card plan plain">
+          <span class="tag">Büyüyen eğitmenler için</span>
+          <h3>Pro</h3>
+          <div class="price"><b>${tl(PRO_PRICE)}</b><span>/ ay</span></div>
+          <p class="muted">Satışın arttıkça daha az pay öde. Ayda ${tl(PRO_PRICE / ((FEE - PRO_FEE) / 100))} üzeri satışta Başlangıç'tan daha kârlı.</p>
+          <ul class="checks">
+            ${li(`Satıştan yalnızca <b>%${PRO_FEE}</b> hizmet payı; işlem ücreti dahil`)}
+            ${li(`${QUOTA.pro} GB video alanı`)}
+            ${li('Okul içinden canlı yayında daha uzun süre <span class="tag">yakında</span>')}
+            ${li('Başlangıç planındaki her şey')}
+          </ul>
+          <button class="btn lg block" disabled>Kartla ödeme açılınca</button>
         </div>
       </div>
-      <div class="card notice small"><b>Tanıtım dönemi:</b> kartla ödeme altyapımız açılana kadar iki plan da tamamen ücretsiz. Bu dönemde hizmet payı ve aylık plan ücreti alınmıyor; üyelik ödemeleri doğrudan eğitmenin hesabına yapılıyor.</div>
-      <div class="card stack"><h3>İki planda da olanlar</h3>
+      <div class="card notice small"><b>Tanıtım dönemi:</b> kartla ödeme altyapımız açılana kadar Ücretsiz ve Başlangıç planları tamamen ücretsiz; hizmet payı ve plan ücreti alınmıyor, üyelik ödemeleri doğrudan eğitmenin hesabına yapılıyor. Bu dönemde video dosyası yükleme topluluk başına ${PROMO_QUOTA} GB ve video başına ${PROMO_VIDEO_MB} MB ile sınırlı; uzun videolar için YouTube bağlantısı kullanabilirsin. Pro planı ödeme altyapısıyla birlikte açılacak.</div>
+      <div class="card stack"><h3>Bütün planlarda olanlar</h3>
         <ul class="checks cols">
-          ${li('Sınırsız kurs ve ders')}${li('Ders sonu testleri')}${li('Derslere video, dosya ve bağlantı ekleme')}${li(`${QUOTA_GB} GB video depolama; YouTube bağlantısıyla sınırsız video`)}
-          ${li('Topluluk akışı, anketler, özel mesajlar')}${li('Canlı yayın ve anlık sohbet')}${li('Yönetim paneli ve istatistikler')}${li('Seviye sistemi ve sıralama')}
+          ${li('Sınırsız kurs ve ders')}${li('Ders sonu testleri')}${li('Derslere video, dosya ve bağlantı ekleme')}${li('YouTube bağlantısıyla sınırsız video')}
+          ${li('Topluluk akışı, anketler, özel mesajlar')}${li('YouTube üzerinden canlı yayın ve anlık sohbet')}${li('Yönetim paneli ve istatistikler')}${li('Seviye sistemi ve sıralama')}
           ${li('Açık, özel ya da gizli topluluk; davet bağlantısı')}${li('Kendi logon, kapak görselin ve kuralların')}${li('Açık ve koyu tema')}${li('Türkçe arayüz, TL ile fiyat')}
         </ul></div>
-      <div class="card stack calc"><h2>Eğitim satarsan ne kadar kazanırsın?</h2><p class="small muted">Üye sayını ve aylık ücretini yaz; hesap anında güncellenir.</p>
+      <div class="card stack calc"><h2>Eğitim satarsan ne kadar kazanırsın?</h2><p class="small muted">Üye sayını ve aylık ücretini yaz; iki planı anında karşılaştır.</p>
         <div class="row" style="flex-wrap:wrap;align-items:flex-end"><div class="grow" style="min-width:140px"><label for="pc-n">Ücretli üye sayısı</label><input id="pc-n" type="number" min="0" max="1000000" step="1" value="50" data-calc inputmode="numeric"></div>
           <div class="grow" style="min-width:140px"><label for="pc-p">Aylık üyelik ücreti (₺)</label><input id="pc-p" type="number" min="${MIN_PRICE}" max="1000000" step="1" value="300" data-calc inputmode="numeric"></div></div>
         <div class="statgrid" id="calcOut">${calcOut(50, 300)}</div>
@@ -573,37 +589,42 @@ function viewPricing() {
       <div><h2>Neden Okul?</h2><p class="small muted">Yurt dışı kaynaklı topluluk platformlarını kullananların en sık dile getirdiği sorunları çözmek için tasarlandı.</p></div>
       <div class="tgrid" style="margin-top:0">
         ${why('zap', 'Deneme süresi değil, ücretsiz başlangıç', `Birkaç haftalık deneme yerine süresiz ücretsiz başlarsın: ${FREE_MEMBERS} üyeye kadar plan ücreti yok.`)}
-        ${why('dollar', 'Kazanmadan ödemek yok', 'Eğitim satanlar için sabit aylık ücret yok. Üyen yoksa ödemen de yok.')}
+        ${why('dollar', 'Kazanmadan ödemek yok', 'Eğitim satmaya başlayanlar için sabit aylık ücret yok. Üyen yoksa ödemen de yok.')}
         ${why('globe', 'Türkçe ve TL', 'Arayüz Türkçe, fiyatlar TL. Üyelerin kur farkı ya da yabancı dilde ekranlarla uğraşmaz.')}
         ${why('pen', 'Topluluğun sana benzesin', 'Logo, kapak görseli, simge, renk, kategoriler, kurallar ve görünen bölümler senin elinde.')}
         ${why('check', 'Ders sonu testleri', 'Öğrencilerin dersi anlayıp anlamadığını ek araç kullanmadan ölç.')}
-        ${why('layers', 'Tek oran, sürpriz yok', `Tek kesinti %${FEE} ve işlem ücreti içinde. Plan yükseltme, ek paket ya da gizli ücret yok.`)}
+        ${why('trend', 'Büyüdükçe ucuzlar', `Satışın artınca Pro'ya geç: pay %${FEE}'dan %${PRO_FEE}'e iner.`)}
       </div>
       <div class="card stack">
         <div class="cmp" role="table" aria-label="Karşılaştırma">
           <div role="row" class="cmp-head"><span role="columnheader"></span><span role="columnheader">Okul</span><span role="columnheader">Sabit aylık ücretli platformlar</span></div>
           <div role="row"><span role="rowheader">Başlangıç</span><b role="cell">Süresiz ücretsiz</b><span role="cell">Kısa deneme, sonra aylık ücret</span></div>
-          <div role="row"><span role="rowheader">Eğitim satanlar için aylık ücret</span><b role="cell">Yok</b><span role="cell">Var</span></div>
+          <div role="row"><span role="rowheader">Eğitim satmaya başlarken aylık ücret</span><b role="cell">Yok</b><span role="cell">Var</span></div>
           <div role="row"><span role="rowheader">Satış yapmadığın ay</span><b role="cell">₺0</b><span role="cell">Yine ödersin</span></div>
-          <div role="row"><span role="rowheader">Kesinti</span><b role="cell">Tek oran: %${FEE}, her şey dahil</b><span role="cell">Aylık ücrete ek işlem kesintisi</span></div>
+          <div role="row"><span role="rowheader">Kesinti</span><b role="cell">%${FEE} ya da Pro'da %${PRO_FEE}; her şey dahil</b><span role="cell">Aylık ücrete ek işlem kesintisi</span></div>
           <div role="row"><span role="rowheader">Fiyat ve dil</span><b role="cell">TL ve Türkçe</b><span role="cell">Çoğunlukla dolar ve İngilizce</span></div>
         </div></div>
       <div><h2>Sık sorulanlar</h2></div>
       ${faq('Öğrenciler Okul\'a ücret öder mi?', 'Hayır. Öğrenci olmak, topluluklara katılmak ve ücretsiz toplulukların kurslarını izlemek tamamen ücretsizdir. Ücretli bir topluluğa katılan öğrenci yalnızca eğitmenin belirlediği üyelik ücretini öder.')}
+      ${faq('Başlangıç ile Pro arasındaki fark ne?', `Başlangıç'ta aylık ücret yoktur, satıştan %${FEE} alınır. Pro'da ayda ${tl(PRO_PRICE)} ödersin, satıştan yalnızca %${PRO_FEE} alınır ve video alanın ${QUOTA.pro} GB olur. Aylık satışın ${tl(PRO_PRICE / ((FEE - PRO_FEE) / 100))} tutarını geçtiğinde Pro daha kârlıdır.`)}
       ${faq(`Ücretsiz toplulukta ${FREE_MEMBERS} üyeyi geçince ne olur?`, `Topluluğun çalışmaya devam eder. ${FREE_MEMBERS} üyeden sonra, barındırma ve depolama giderini karşılamak için ${tl(FREE_PLAN)} tutarında sabit aylık ücret başlar; üye sayın ne kadar artarsa artsın ücret değişmez. Üyelerinden hiçbir şey alınmaz.`)}
       ${faq('Ücretli toplulukta ücretsiz üye alabilir miyim?', `Evet, davet bağlantısıyla. Ücretsiz aldığın üye sayısı ${FREE_MEMBERS}'yi geçerse ücretsiz topluluklardaki ${tl(FREE_PLAN)} aylık ücret burada da uygulanır.`)}
-      ${faq('Hizmet payı tam olarak neden alınır?', `Yalnızca ücretli üyelik ödemelerinden, %${FEE} oranında; kart ve ödeme işlem ücreti bu orana dahildir. Kurs sayısından, üye sayısından ya da canlı yayınlardan ek ücret alınmaz.`)}
+      ${faq('Video alanı ne demek?', `Derslerine yüklediğin video dosyalarının toplam boyutudur: Ücretsiz toplulukta ${QUOTA.free} GB, Başlangıç'ta ${QUOTA.paid} GB, Pro'da ${QUOTA.pro} GB. YouTube bağlantısıyla eklediğin videolar bu alana dahil değildir ve sınırsızdır. Tanıtım döneminde dosya yükleme tüm planlarda topluluk başına ${PROMO_QUOTA} GB ile sınırlıdır.`)}
+      ${faq('Canlı yayın nasıl yapılıyor?', 'Şu an bütün planlarda YouTube canlı yayınını topluluğunda gösterebilir, üyelerinle Okul içindeki sohbetten yazışabilirsin. Doğrudan Okul içinden kamerayla yayın, eğitim satan topluluklar için hazırlanıyor.')}
+      ${faq('Hizmet payı tam olarak neden alınır?', `Yalnızca ücretli üyelik ödemelerinden; kart ve ödeme işlem ücreti bu orana dahildir. Kurs sayısından, üye sayısından ya da canlı yayınlardan ek ücret alınmaz.`)}
       ${faq('En düşük üyelik ücreti neden ' + tl(MIN_PRICE) + '?', 'Çok küçük tutarlarda kart işlem ücreti ödemenin büyük kısmını götürür. Alt sınır, hem eğitmenin hem platformun her satıştan anlamlı bir pay almasını sağlar.')}
-      ${faq('Video depolama sınırı ne demek?', `Her topluluk derslerine toplam ${QUOTA_GB} GB video dosyası yükleyebilir. YouTube bağlantısıyla eklediğin videolar bu sınıra dahil değildir ve sayıca sınırsızdır.`)}
-      ${faq('Şu an bir şey ödeyecek miyim?', 'Hayır. Kartla ödeme altyapımız açılana kadar tanıtım dönemindeyiz: hizmet payı ve aylık plan ücreti alınmıyor, üyelik ödemeleri doğrudan senin hesabına yapılıyor.')}
+      ${faq('Şu an bir şey ödeyecek miyim?', 'Hayır. Kartla ödeme altyapımız açılana kadar tanıtım dönemindeyiz: hizmet payı ve plan ücreti alınmıyor, üyelik ödemeleri doğrudan senin hesabına yapılıyor.')}
       ${faq('Taahhüt ya da iptal ücreti var mı?', 'Yok. Topluluğunu istediğin zaman kapatabilirsin.')}
       <div style="text-align:center;padding:8px 0 16px"><button class="btn primary lg" data-act="teachStart">Topluluğunu ücretsiz kur</button></div>
     </div>`;
 }
 function calcOut(n, p) {
-  const gross = Math.max(0, n) * Math.max(0, p), fee = gross * FEE / 100;
-  const s = (v, l, sub) => `<div class="card stat"><b>${v}</b><span>${l}</span><small>${sub}</small></div>`;
-  return s(tl(gross), 'Aylık üyelik geliri', `${Math.max(0, n).toLocaleString('tr-TR')} üye × ${tl(Math.max(0, p))}`) + s(tl(gross - fee), 'Sana kalan', `Gelirin %${100 - FEE}'i`) + s(tl(fee), 'Okul hizmet payı', `%${FEE} · üye başına ${tl(Math.max(0, p) * FEE / 100)}`);
+  n = Math.max(0, n); p = Math.max(0, p);
+  const gross = n * p, start = gross * (100 - FEE) / 100, pro = gross * (100 - PRO_FEE) / 100 - PRO_PRICE, best = pro > start ? 'pro' : 'start';
+  const s = (v, l, sub, hot) => `<div class="card stat ${hot ? 'hot' : ''}"><b>${v}</b><span>${l}${hot ? ' <em class="tag gold">daha kârlı</em>' : ''}</span><small>${sub}</small></div>`;
+  return s(tl(gross), 'Aylık üyelik geliri', `${n.toLocaleString('tr-TR')} üye × ${tl(p)}`)
+    + s(tl(start), 'Başlangıç planında sana kalan', `%${FEE} hizmet payı: ${tl(gross - start)}`, best === 'start' && gross > 0)
+    + s(tl(Math.max(0, pro)), 'Pro planında sana kalan', `${tl(PRO_PRICE)} plan ücreti + %${PRO_FEE} hizmet payı`, best === 'pro');
 }
 
 // ---------- Fotoğraf kırpma ----------
@@ -922,7 +943,7 @@ async function tabCourse(courseId, lessonId) {
           <div><label for="l-video">YouTube bağlantısı (isteğe bağlı)</label><input id="l-video" type="url" name="video" maxlength="200"></div>
           <div><label for="l-img">Görsel (isteğe bağlı)</label><input id="l-img" type="file" name="image" accept="image/png,image/jpeg,image/webp,image/gif"></div>
           <div><label for="l-vfile">Video dosyası (MP4, WebM, MOV)</label><input id="l-vfile" type="file" name="videoFile" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov">
-            <p class="small muted" style="margin-top:4px">Video parça parça yüklenir; bitene kadar sayfayı kapatma. Çok uzun videolar için YouTube bağlantısı daha hızlıdır.</p></div>
+            <p class="small muted" style="margin-top:4px">En çok ${PROMO_VIDEO_MB} MB. Video parça parça yüklenir; bitene kadar sayfayı kapatma. Uzun videolar için YouTube bağlantısı ekle; onlar sınırsızdır.</p></div>
           <div class="upbar" hidden><div class="bar"><i style="width:0"></i></div><span class="small muted">Video yükleniyor…</span></div>
           <div><label for="l-file">Ders dosyaları (PDF, ZIP, Word, Excel… en çok 10)</label><input id="l-file" type="file" name="files" multiple accept=".pdf,.zip,.docx,.xlsx,.pptx,.txt,.csv"></div>
           <div><label for="l-quiz">Ders sonu testi (isteğe bağlı)</label><textarea id="l-quiz" name="quiz" rows="5" maxlength="12000" placeholder="Soru metni?&#10;* Doğru seçenek&#10;- Yanlış seçenek&#10;- Yanlış seçenek&#10;&#10;İkinci soru?&#10;- Yanlış&#10;* Doğru"></textarea>
@@ -960,7 +981,7 @@ async function tabCourse(courseId, lessonId) {
           <div><label for="le-content">İçerik</label><textarea id="le-content" name="content" maxlength="10000" rows="6">${esc(cur.content)}</textarea></div>
           <div><label for="le-img">${cur.image ? 'Görseli değiştir' : 'Görsel ekle'}</label><input id="le-img" type="file" name="image" accept="image/png,image/jpeg,image/webp,image/gif"></div>
           <div><label for="le-vfile">${cur.video_file ? 'Videoyu değiştir' : 'Video dosyası ekle'} (MP4, WebM, MOV)</label><input id="le-vfile" type="file" name="videoFile" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov">
-            <p class="small muted" style="margin-top:4px">Video parça parça yüklenir; bitene kadar sayfayı kapatma. Çok uzun videolar için YouTube bağlantısı daha hızlıdır.</p></div>
+            <p class="small muted" style="margin-top:4px">En çok ${PROMO_VIDEO_MB} MB. Video parça parça yüklenir; bitene kadar sayfayı kapatma. Uzun videolar için YouTube bağlantısı ekle; onlar sınırsızdır.</p></div>
           <div class="upbar" hidden><div class="bar"><i style="width:0"></i></div><span class="small muted">Video yükleniyor…</span></div>
           ${cur.image ? '<label class="check"><input type="checkbox" name="removeImage"> Görseli kaldır</label>' : ''}
           ${cur.video_file ? '<label class="check"><input type="checkbox" name="removeVideo"> Yüklenen videoyu kaldır</label>' : ''}
@@ -1114,15 +1135,24 @@ async function tabAdmin(sec = '') {
   return nav + body;
 }
 const paidLabel = m => (m.role === 'admin' ? 'Yönetici' : !m.paid_until ? 'Süresiz' : m.paid_until < Date.now() ? 'Süresi doldu' : `${fmtDate(m.paid_until, { day: 'numeric', month: 'short', year: 'numeric' })} tarihine kadar`);
+// Topluluğun planı ve plan ücretini tetikleyen sınıra ne kadar yakın olduğu
+function planCard(A) {
+  const c = C.community, free = c.price_type === 'free', unpaid = A.members.filter(m => m.role !== 'admin' && !m.paid_until).length;
+  const over = unpaid > FREE_MEMBERS;
+  return `<div class="card stat" style="grid-column:1/-1;border-top-color:var(--accent)"><b>${free ? 'Ücretsiz topluluk' : 'Başlangıç planı'}</b>
+    <span>${free ? `Plan ücreti yok · ${FREE_MEMBERS} üyeye kadar` : `Aylık ücret yok · satıştan %${FEE} hizmet payı`}</span>
+    <small>${free ? `Ücretsiz üye: ${unpaid} / ${FREE_MEMBERS}.` : `Ücretsiz (davetli) üye: ${unpaid} / ${FREE_MEMBERS}.`} ${over ? `Sınır aşıldı; ödeme altyapısı açıldığında ${tl(FREE_PLAN)} aylık plan ücreti uygulanacak.` : ''} Tanıtım döneminde ücret alınmıyor. <a href="#/pricing" style="color:var(--accent);font-weight:600">Planları gör →</a></small></div>`;
+}
 function adminOverview(A) {
   const c = C.community, s = A.stats, link = `${location.origin}/#/i/${A.invite_code}`;
   const stat = (v, l, sub = '') => `<div class="card stat"><b>${v}</b><span>${l}</span>${sub ? `<small>${sub}</small>` : ''}</div>`;
   const soon = A.members.filter(m => m.role !== 'admin' && m.paid_until && m.paid_until < Date.now() + 7 * 864e5).sort((a, b) => a.paid_until - b.paid_until);
   return `<div class="statgrid">
+      ${planCard(A)}
       ${stat(s.members, 'Toplam üye', `Son 7 günde +${s.new7} · 30 günde +${s.new30}`)}
       ${stat(A.requests.length, 'Bekleyen istek', A.requests.length ? `<a href="#/c/${esc(c.slug)}/admin/members" style="color:var(--accent);font-weight:600">İncele →</a>` : 'Bekleyen yok')}
       ${stat(s.posts7, 'Gönderi (7 gün)', `${s.comments7} yorum · ${s.likes7} beğeni`)}
-      ${stat(`${(A.storage.used / 1024 ** 3).toFixed(2).replace('.', ',')} GB`, 'Video depolama', `${Math.round(A.storage.quota / 1024 ** 3)} GB kotanın %${Math.min(100, Math.round(A.storage.used * 100 / A.storage.quota))}'i · YouTube videoları sayılmaz`)}
+      ${stat(`${(A.storage.used / 1024 ** 3).toFixed(2).replace('.', ',')} GB`, 'Video depolama', `${Math.round(A.storage.quota / 1024 ** 3)} GB alanın %${Math.min(100, Math.round(A.storage.used * 100 / A.storage.quota))}'i${A.storage.planQuota > A.storage.quota ? ` · planında ${Math.round(A.storage.planQuota / 1024 ** 3)} GB, tanıtım döneminde ${Math.round(A.storage.quota / 1024 ** 3)} GB` : ''} · YouTube videoları sayılmaz`)}
       ${c.price_type === 'monthly' ? stat(tl(s.revenue), 'Tahmini aylık gelir', `${s.paying} aktif ücretli üye × ${tl(c.price_amount)}`) : stat(c.price_text ? esc(c.price_text) : 'Ücretsiz', 'Üyelik türü', `<a href="#/c/${esc(c.slug)}/admin/pricing" style="color:var(--accent);font-weight:600">Değiştir →</a>`)}
     </div>
     <div class="card stack"><h3>Davet bağlantısı</h3>
@@ -1173,7 +1203,7 @@ function adminPricing(A) {
         <li><b>Aylık</b> üyelikte onay 30 gün erişim açar. Süre dolunca üye içerikleri göremez; yeniden ödeyip yenileme isteği gönderir ya da sen süreyi elle uzatırsın.</li>
         <li><b>Tek seferlik</b> üyelikte onay süresiz erişim açar.</li>
       </ol>
-      <p class="small"><b>Planın:</b> ${c.price_type === 'free' ? `Ücretsiz topluluk — ${FREE_MEMBERS} üyeye kadar ücretsiz, sonrasında ${tl(FREE_PLAN)} / ay; komisyon yok.` : `Ücretli topluluk — aylık ücret yok, satışlardan %${FEE} hizmet payı.`} Tanıtım döneminde ikisi de alınmıyor.</p>
+      <p class="small"><b>Planın:</b> ${c.price_type === 'free' ? `Ücretsiz topluluk — ${FREE_MEMBERS} üyeye kadar ücretsiz, sonrasında ${tl(FREE_PLAN)} / ay; komisyon yok; ${QUOTA.free} GB video alanı.` : `Başlangıç — aylık ücret yok, satışlardan %${FEE} hizmet payı; ${QUOTA.paid} GB video alanı.`} Tanıtım döneminde ücret alınmıyor; Pro planı (${tl(PRO_PRICE)} / ay, %${PRO_FEE} pay) ödeme altyapısıyla açılacak.</p>
       <p class="small muted">Kartla otomatik tahsilat henüz yok; ödemeler senin hesabına doğrudan yapılır ve bu dönemde Okul hizmet payı almaz. Şu an ${A.stats.paying} aktif süreli üyen var. <a href="#/pricing" style="color:var(--accent);font-weight:600">Fiyatlandırma →</a></p></div>`;
 }
 function adminMembers(A) {
