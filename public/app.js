@@ -512,10 +512,10 @@ function viewSettings(sec) {
 }
 
 // ---------- Fiyatlandırma ----------
-// Model: önce gelir, sonra gider. Maliyet doğuran özellikler (geniş video alanı, kendi canlı yayınımız) gelir getiren planlara bağlıdır.
+// Model: bütün özellikler her planda ücretsizdir; planlar yalnızca hizmet payı, video alanı ve vitrin önceliğiyle ayrışır.
 const FEE = 10;          // Başlangıç planında satıştan alınan hizmet payı (%), ödeme işlem ücreti dahil
-const PRO_PRICE = 499;   // Pro planının aylık ücreti (₺)
-const PRO_FEE = 4;       // Pro planında satıştan alınan hizmet payı (%), ödeme işlem ücreti dahil
+const PRO_PRICE = 799;   // Pro planının aylık ücreti (₺)
+const PRO_FEE = 7;       // Pro planında satıştan alınan hizmet payı (%), ödeme işlem ücreti dahil
 const MIN_PRICE = 250;   // ücretli üyeliğin en düşük fiyatı (₺)
 const FREE_MEMBERS = 50; // bu sayıya kadar ücretsiz üyesi olan topluluk plan ücreti ödemez
 const FREE_PLAN = 149;   // ücretsiz üye sayısı sınırı aşan toplulukların aylık plan ücreti (₺)
@@ -529,7 +529,7 @@ function viewPricing() {
   return `<section class="teach-hero"><div class="wrap">
       <span class="tag gold">Fiyatlandırma</span>
       <h1>Ücretsiz başla.<br>Sen kazanınca biz de kazanırız.</h1>
-      <p class="muted">Deneme süresi yok, kart bilgisi yok. Topluluğunu ücretsiz kur; eğitim satmaya başladığında yalnızca satıştan küçük bir pay alırız.</p>
+      <p class="muted">Kurslar, video yükleme, canlı yayın ve bütün özellikler her planda ücretsiz. Deneme süresi yok, kart bilgisi yok; eğitim satmaya başladığında yalnızca satıştan küçük bir pay alırız.</p>
     </div></section>
     <div class="wrap stack" style="padding-bottom:24px">
       <div class="pricegrid three">
@@ -541,8 +541,8 @@ function viewPricing() {
           <ul class="checks">
             ${li(`${FREE_MEMBERS} üyeden sonra <b>${tl(FREE_PLAN)} / ay</b>, üye sayısı sınırsız`)}
             ${li('Komisyon yok; üyelerin için tamamen ücretsiz')}
-            ${li(`${QUOTA.free} GB video alanı`)}
-            ${li('YouTube bağlantısıyla sınırsız video ve canlı yayın')}
+            ${li('Kurslar, canlı yayın ve bütün özellikler dahil')}
+            ${li(`${QUOTA.free} GB video alanı; YouTube bağlantısıyla sınırsız video`)}
           </ul>
           <button class="btn lg block" data-act="teachStart">Ücretsiz kur</button>
         </div>
@@ -554,8 +554,8 @@ function viewPricing() {
           <ul class="checks">
             ${li(`Satıştan <b>%${FEE}</b> hizmet payı; işlem ücreti dahil`)}
             ${li('Satış yapmadığın ay hiçbir şey ödemezsin')}
+            ${li('Kurslar, canlı yayın ve bütün özellikler dahil')}
             ${li(`${QUOTA.paid} GB video alanı`)}
-            ${li('Okul içinden kamerayla canlı yayın <span class="tag">yakında</span>')}
             ${li(`Üyelik ücretini sen belirlersin (en az ${tl(MIN_PRICE)})`)}
           </ul>
           <button class="btn primary lg block" data-act="teachStart">Topluluğunu kur</button>
@@ -564,11 +564,11 @@ function viewPricing() {
           <span class="tag">Büyüyen eğitmenler için</span>
           <h3>Pro</h3>
           <div class="price"><b>${tl(PRO_PRICE)}</b><span>/ ay</span></div>
-          <p class="muted">Satışın arttıkça daha az pay öde. Ayda ${tl(PRO_PRICE / ((FEE - PRO_FEE) / 100))} üzeri satışta Başlangıç'tan daha kârlı.</p>
+          <p class="muted">Topluluğunu işine çevirenler için: daha düşük pay, daha geniş alan ve keşfette öncelik.</p>
           <ul class="checks">
-            ${li(`Satıştan yalnızca <b>%${PRO_FEE}</b> hizmet payı; işlem ücreti dahil`)}
+            ${li(`Satıştan <b>%${PRO_FEE}</b> hizmet payı; işlem ücreti dahil`)}
             ${li(`${QUOTA.pro} GB video alanı`)}
-            ${li('Okul içinden canlı yayında daha uzun süre <span class="tag">yakında</span>')}
+            ${li('Keşfet sayfasında öne çıkan topluluk')}
             ${li('Başlangıç planındaki her şey')}
           </ul>
           <button class="btn lg block" disabled>Kartla ödeme açılınca</button>
@@ -578,7 +578,7 @@ function viewPricing() {
       <div class="card stack"><h3>Bütün planlarda olanlar</h3>
         <ul class="checks cols">
           ${li('Sınırsız kurs ve ders')}${li('Ders sonu testleri')}${li('Derslere video, dosya ve bağlantı ekleme')}${li('YouTube bağlantısıyla sınırsız video')}
-          ${li('Topluluk akışı, anketler, özel mesajlar')}${li('YouTube üzerinden canlı yayın ve anlık sohbet')}${li('Yönetim paneli ve istatistikler')}${li('Seviye sistemi ve sıralama')}
+          ${li('Topluluk akışı, anketler, özel mesajlar')}${li('Canlı yayın ve anlık sohbet')}${li('Yönetim paneli ve istatistikler')}${li('Seviye sistemi ve sıralama')}
           ${li('Açık, özel ya da gizli topluluk; davet bağlantısı')}${li('Kendi logon, kapak görselin ve kuralların')}${li('Açık ve koyu tema')}${li('Türkçe arayüz, TL ile fiyat')}
         </ul></div>
       <div class="card stack calc"><h2>Eğitim satarsan ne kadar kazanırsın?</h2><p class="small muted">Üye sayını ve aylık ücretini yaz; iki planı anında karşılaştır.</p>
@@ -593,7 +593,7 @@ function viewPricing() {
         ${why('globe', 'Türkçe ve TL', 'Arayüz Türkçe, fiyatlar TL. Üyelerin kur farkı ya da yabancı dilde ekranlarla uğraşmaz.')}
         ${why('pen', 'Topluluğun sana benzesin', 'Logo, kapak görseli, simge, renk, kategoriler, kurallar ve görünen bölümler senin elinde.')}
         ${why('check', 'Ders sonu testleri', 'Öğrencilerin dersi anlayıp anlamadığını ek araç kullanmadan ölç.')}
-        ${why('trend', 'Büyüdükçe ucuzlar', `Satışın artınca Pro'ya geç: pay %${FEE}'dan %${PRO_FEE}'e iner.`)}
+        ${why('trend', 'Hiçbir özellik kilitli değil', 'Kurslar, video yükleme, testler ve canlı yayın her planda var. Planlar yalnızca pay oranı ve alan genişliğiyle ayrışır.')}
       </div>
       <div class="card stack">
         <div class="cmp" role="table" aria-label="Karşılaştırma">
@@ -606,11 +606,11 @@ function viewPricing() {
         </div></div>
       <div><h2>Sık sorulanlar</h2></div>
       ${faq('Öğrenciler Okul\'a ücret öder mi?', 'Hayır. Öğrenci olmak, topluluklara katılmak ve ücretsiz toplulukların kurslarını izlemek tamamen ücretsizdir. Ücretli bir topluluğa katılan öğrenci yalnızca eğitmenin belirlediği üyelik ücretini öder.')}
-      ${faq('Başlangıç ile Pro arasındaki fark ne?', `Başlangıç'ta aylık ücret yoktur, satıştan %${FEE} alınır. Pro'da ayda ${tl(PRO_PRICE)} ödersin, satıştan yalnızca %${PRO_FEE} alınır ve video alanın ${QUOTA.pro} GB olur. Aylık satışın ${tl(PRO_PRICE / ((FEE - PRO_FEE) / 100))} tutarını geçtiğinde Pro daha kârlıdır.`)}
+      ${faq('Başlangıç ile Pro arasındaki fark ne?', `Özellikler aynıdır. Başlangıç'ta aylık ücret yoktur, satıştan %${FEE} alınır ve ${QUOTA.paid} GB video alanın olur. Pro'da ayda ${tl(PRO_PRICE)} ödersin; satıştan %${PRO_FEE} alınır, video alanın ${QUOTA.pro} GB olur ve topluluğun keşfet sayfasında öne çıkar. Hangisinin sana daha çok kazandıracağını yukarıdaki hesaplayıcı gösterir.`)}
       ${faq(`Ücretsiz toplulukta ${FREE_MEMBERS} üyeyi geçince ne olur?`, `Topluluğun çalışmaya devam eder. ${FREE_MEMBERS} üyeden sonra, barındırma ve depolama giderini karşılamak için ${tl(FREE_PLAN)} tutarında sabit aylık ücret başlar; üye sayın ne kadar artarsa artsın ücret değişmez. Üyelerinden hiçbir şey alınmaz.`)}
       ${faq('Ücretli toplulukta ücretsiz üye alabilir miyim?', `Evet, davet bağlantısıyla. Ücretsiz aldığın üye sayısı ${FREE_MEMBERS}'yi geçerse ücretsiz topluluklardaki ${tl(FREE_PLAN)} aylık ücret burada da uygulanır.`)}
       ${faq('Video alanı ne demek?', `Derslerine yüklediğin video dosyalarının toplam boyutudur: Ücretsiz toplulukta ${QUOTA.free} GB, Başlangıç'ta ${QUOTA.paid} GB, Pro'da ${QUOTA.pro} GB. YouTube bağlantısıyla eklediğin videolar bu alana dahil değildir ve sınırsızdır. Tanıtım döneminde dosya yükleme tüm planlarda topluluk başına ${PROMO_QUOTA} GB ile sınırlıdır.`)}
-      ${faq('Canlı yayın nasıl yapılıyor?', 'Şu an bütün planlarda YouTube canlı yayınını topluluğunda gösterebilir, üyelerinle Okul içindeki sohbetten yazışabilirsin. Doğrudan Okul içinden kamerayla yayın, eğitim satan topluluklar için hazırlanıyor.')}
+      ${faq('Canlı yayın ücretli mi?', 'Hayır, bütün planlarda ücretsiz. Şu an YouTube canlı yayınını topluluğunda gösterebilir, üyelerinle Okul içindeki sohbetten yazışabilirsin. Doğrudan Okul içinden kamerayla yayın hazırlanıyor; açıldığında o da bütün planlarda olacak.')}
       ${faq('Hizmet payı tam olarak neden alınır?', `Yalnızca ücretli üyelik ödemelerinden; kart ve ödeme işlem ücreti bu orana dahildir. Kurs sayısından, üye sayısından ya da canlı yayınlardan ek ücret alınmaz.`)}
       ${faq('En düşük üyelik ücreti neden ' + tl(MIN_PRICE) + '?', 'Çok küçük tutarlarda kart işlem ücreti ödemenin büyük kısmını götürür. Alt sınır, hem eğitmenin hem platformun her satıştan anlamlı bir pay almasını sağlar.')}
       ${faq('Şu an bir şey ödeyecek miyim?', 'Hayır. Kartla ödeme altyapımız açılana kadar tanıtım dönemindeyiz: hizmet payı ve plan ücreti alınmıyor, üyelik ödemeleri doğrudan senin hesabına yapılıyor.')}
